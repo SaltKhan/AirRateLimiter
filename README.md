@@ -10,3 +10,5 @@ The client class is a mock'd client instantiating a socketed connection to the s
 Beyond the obvious test cases sampled here which only test the *requested functionality* and not any of the *future requested functionality stubs*, short of readibility of the results of the server test (testing the returned 429 after hitting the rate limit conditions), spin up an instance of the Server, and submit messages from the client. For more reasonable "hits per time", consider lowering these in the Server.main(...)
 ## Where does this happen in the code?
 You can find the spooling of the rate limiter inside the Server's inner class "ClientSocketListener"'s run method. (Except for the "hostile IP" check which happens before spinning up a ClientSocketListener, in the ClientSocketListener's constructor)
+## Possible upgrades?
+If the rate limiter returns unique ID's for the accepted requests, then at the completion of the request, some metric (time/compute-effort) may be submitted to the rate limiter to limit by these metrics instead of just "hits"
