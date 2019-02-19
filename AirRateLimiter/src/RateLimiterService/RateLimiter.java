@@ -7,7 +7,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 
 import DataStore.IDataStore;
+import DataStore.IDataStore.RateLimitedIdentity;
 
+/***
+ * Implements the expectations of the IRateLimiter
+ */
 public class RateLimiter implements IRateLimiter {
 
 	final private boolean storeHostileIPs;
@@ -19,7 +23,29 @@ public class RateLimiter implements IRateLimiter {
 	final private int TimeLimitSeconds;
 	final private IDataStore dataStore;
 	
-	public RateLimiter(IDataStore dataStore, int RequestLimitHits, int TimeLimitSeconds, boolean storeHostileIPs, boolean rateLimitByIP, boolean rateLimitByUser, boolean rateLimitByEndpoint, boolean approvedUsersOnly, boolean demandsUserAuth) {
+	/*
+	 * Constructors
+	 */
+	
+	/***
+	 * The most generic constructor. Assign everything
+	 * @param dataStore
+	 * @param RequestLimitHits
+	 * @param TimeLimitSeconds
+	 * @param storeHostileIPs
+	 * @param rateLimitByIP
+	 * @param rateLimitByUser
+	 * @param rateLimitByEndpoint
+	 * @param approvedUsersOnly
+	 */
+	public RateLimiter(IDataStore dataStore, 
+					   int RequestLimitHits, 
+					   int TimeLimitSeconds, 
+					   boolean storeHostileIPs, 
+					   boolean rateLimitByIP, 
+					   boolean rateLimitByUser, 
+					   boolean rateLimitByEndpoint, 
+					   boolean approvedUsersOnly) {
 		this.RequestLimitHits = RequestLimitHits;
 		this.TimeLimitSeconds = TimeLimitSeconds;
 		this.storeHostileIPs = storeHostileIPs;
@@ -30,9 +56,26 @@ public class RateLimiter implements IRateLimiter {
 		this.dataStore = dataStore;
 	}
 	
-	public RateLimiter(IDataStore dataStore, boolean storeHostileIPs, boolean rateLimitByIP, boolean rateLimitByUser, boolean rateLimitByEndpoint, boolean approvedUsersOnly, boolean demandsUserAuth) {
-		this.RequestLimitHits = 100;
-		this.TimeLimitSeconds = 3600;
+	/***
+	 * Constructor generic to everything other 
+	 * than predefined rate at which to limit
+	 * @param dataStore
+	 * @param storeHostileIPs
+	 * @param rateLimitByIP
+	 * @param rateLimitByUser
+	 * @param rateLimitByEndpoint
+	 * @param approvedUsersOnly
+	 * @param demandsUserAuth
+	 */
+	public RateLimiter(IDataStore dataStore, 
+					   boolean storeHostileIPs, 
+					   boolean rateLimitByIP, 
+					   boolean rateLimitByUser, 
+					   boolean rateLimitByEndpoint, 
+					   boolean approvedUsersOnly, 
+					   boolean demandsUserAuth) {
+		this.RequestLimitHits = IRateLimiter.RequestLimitHits_Standard;
+		this.TimeLimitSeconds = IRateLimiter.TimeLimitSeconds_Standard;
 		this.storeHostileIPs = storeHostileIPs;
 		this.rateLimitByIP = rateLimitByIP;
 		this.rateLimitByUser = rateLimitByUser;
@@ -41,123 +84,303 @@ public class RateLimiter implements IRateLimiter {
 		this.dataStore = dataStore;
 	}
 	
+	/***
+	 * Make a rate limiter which limits on End-points per User identities,
+	 * but allow generic assignment of the approvedUsers and 
+	 * the metrics by which the rate limiter operates.
+	 * @param dataStore
+	 * @param RequestLimitHits
+	 * @param TimeLimitSeconds
+	 * @param approvedUsersOnly
+	 */
+	public RateLimiter(IDataStore dataStore, 
+					   int RequestLimitHits, 
+					   int TimeLimitSeconds, 
+					   boolean approvedUsersOnly) {
+		this.RequestLimitHits = RequestLimitHits;
+		this.TimeLimitSeconds = TimeLimitSeconds;
+		this.storeHostileIPs = IRateLimiter.StoreHostileIPs_Standard;
+		this.rateLimitByIP = IRateLimiter.RateLimitByIP_Standard;
+		this.rateLimitByUser = IRateLimiter.RateLimitByUser_Standard;
+		this.rateLimitByEndpoint = IRateLimiter.RateLimitByEndpoint_Standard;
+		this.approvedUsersOnly = approvedUsersOnly;
+		this.dataStore = dataStore;
+	}
+	
+	/***
+	 * Least generic constructor. Makes a RateLimiter with the standard
+	 * rate at which to limit, which limits on End-points per User Identities
+	 * Must assign an IDataStore.
+	 * @param dataStore
+	 */
 	public RateLimiter(IDataStore dataStore) {
-		this.RequestLimitHits = 100;
-		this.TimeLimitSeconds = 3600;
-		this.storeHostileIPs = false;
-		this.rateLimitByIP = false;
-		this.rateLimitByUser = true;
-		this.rateLimitByEndpoint = true;
-		this.approvedUsersOnly = false;
+		this.RequestLimitHits = IRateLimiter.RequestLimitHits_Standard;
+		this.TimeLimitSeconds = IRateLimiter.TimeLimitSeconds_Standard;
+		this.storeHostileIPs = IRateLimiter.StoreHostileIPs_Standard;
+		this.rateLimitByIP = IRateLimiter.RateLimitByIP_Standard;
+		this.rateLimitByUser = IRateLimiter.RateLimitByUser_Standard;
+		this.rateLimitByEndpoint = IRateLimiter.RateLimitByEndpoint_Standard;
+		this.approvedUsersOnly = IRateLimiter.ApprovedUsersOnly_Standard;
 		this.dataStore = dataStore;
 	}
 	
-	public RateLimiter(IDataStore dataStore, int RequestLimitHits, int TimeLimitSeconds, boolean approvedUsersOnly) {
-		this.RequestLimitHits = RequestLimitHits;
-		this.TimeLimitSeconds = TimeLimitSeconds;
-		this.storeHostileIPs = false;
-		this.rateLimitByIP = false;
-		this.rateLimitByUser = true;
-		this.rateLimitByEndpoint = true;
-		this.approvedUsersOnly = approvedUsersOnly;
-		this.dataStore = dataStore;
+	/*
+	 * Getters
+	 */
+	
+	/***
+	 * @return true if hostile IPs are being stored against the IDataStore,
+	 * otherwise false
+	 */
+	public boolean GetStoreHostileIPs() {
+		return this.storeHostileIPs;
 	}
 	
-	@Override
-	public boolean IsIPHostile(Socket clientSocket) {
-		return (this.storeHostileIPs && this.dataStore.containsHostileIP(clientSocket.getInetAddress().getHostAddress()));
+	/***
+	 * @return true if we are rate limiting by IPs, otherwise false
+	 */
+	public boolean GetRateLimitByIP() {
+		return this.rateLimitByIP;
 	}
-
-	@Override
-	public boolean IsIPRateLimited(String clientIP) {
-		return (this.rateLimitByIP && !dataStore.RecordNewIPAttempt(clientIP,RequestLimitHits,TimeLimitSeconds));
-	}
-
-	@Override
-	public boolean IsUserRateLimited(String auth) {
-		return (this.rateLimitByUser && !auth.isEmpty() && !dataStore.RecordNewUserAttempt(auth,RequestLimitHits,TimeLimitSeconds));
-	}
-
-	@Override
-	public boolean IsIdentityRateLimitedToEndPoint(String clientIP, String auth, String httpVerb, String resource) {
-		String identity;
-		if(this.rateLimitByUser) {
-			//We can assume this will be called after checking that if we limit by user, auth is not empty
-			identity = auth;
-		} else {
-			identity = clientIP;
-		}
-		return (this.rateLimitByEndpoint && !dataStore.RecordNewEndpointAttempt(identity,(httpVerb+"|"+resource),RequestLimitHits,TimeLimitSeconds));
-	}
-
-	@Override
-	public void ServeHttp429PerIP(PrintWriter printWriter, String clientIP) {
-		printWriter.println("HTTP/1.1 429");
-		printWriter.println();
-		LocalDateTime next = dataStore.CheckWhenNextRequestAllowedByIP(clientIP,RequestLimitHits,TimeLimitSeconds);
-		printWriter.println("Rate limit exceeded. Try again in "+ChronoUnit.SECONDS.between(LocalDateTime.now(), next)+" seconds");
-		printWriter.flush();
-	}
-
-	@Override
-	public void ServeHttp429PerUser(PrintWriter printWriter, String auth) {
-		printWriter.println("HTTP/1.1 429");
-		printWriter.println();
-		LocalDateTime next = dataStore.CheckWhenNextRequestAllowedByUser(auth,RequestLimitHits,TimeLimitSeconds);
-		printWriter.println("Rate limit exceeded. Try again in "+ChronoUnit.SECONDS.between(LocalDateTime.now(), next)+" seconds");
-		printWriter.flush();
-	}
-
-	@Override
-	public void ServeHttp429PerEndpoint(PrintWriter printWriter, String clientIP, String auth, String httpVerb, String resource) {
-		printWriter.println("HTTP/1.1 429");
-		printWriter.println();
-		String identity;
-		if(this.rateLimitByUser) {
-			//We can assume this will be called after checking that if we limit by user, auth is not empty
-			identity = auth;
-		} else {
-			identity = clientIP;
-		}
-		LocalDateTime next = dataStore.CheckWhenNextEndpointRequestAllowedByIdentity(identity,(httpVerb+"|"+resource),RequestLimitHits,TimeLimitSeconds);
-		printWriter.println("Rate limit exceeded. Try again in "+ChronoUnit.SECONDS.between(LocalDateTime.now(), next)+" seconds");
-		printWriter.flush();
-	}
-
-	@Override
-	public boolean RateLimitsByUser() {
+	
+	/***
+	 * @return true if we are rate limiting by HTTP User Authorization,
+	 * otherwise false
+	 */
+	public boolean GetRateLimitsByUser() {
 		return this.rateLimitByUser;
 	}
 
+	/***
+	 * @return true if we are rate limiting by end-points, otherwise false
+	 */
+	public boolean GetRateLimitByEndpoint() {
+		return this.rateLimitByEndpoint;
+	}
+	
+	/***
+	 * @return true if we are only allowing stored pre-approved HTTP User
+	 * Authorization strings, otherwise false
+	 */
+	public boolean GetApprovedUsersOnly() {
+		return this.approvedUsersOnly;
+	}
+	
+	/*
+	 * IRateLimiter overrides: The three getters that are stipulated
+	 */
+	
 	@Override
-	public void ServeHttp401PerUser(PrintWriter printWriter) {
-		printWriter.println("HTTP/1.1 401");
-		printWriter.println();
-		printWriter.println("Very 401. Such auth. You are required to submit Authorization!");
-		printWriter.flush();
+	public int GetRequestLimitHits() {
+		return this.RequestLimitHits;
+	}
+	
+	@Override
+	public int GetTimeLimitSeconds() {
+		return this.TimeLimitSeconds;
+	}
+	
+	@Override
+	public IDataStore GetIRateLimitersIDataStoreInstance() {
+		return this.dataStore;
+	}
+	
+	/*
+	 * IRateLimiter overrides: The main functionality
+	 */
+	
+	@Override
+	public RateLimitedIdentity GetRateLimitedIdentityFromRateLimiterContext(
+															 String clientIP,
+													         String UserAuth,
+															 String endpoint) {
+		if(this.rateLimitByEndpoint) {
+			String identity = GetEndpointIdentity(clientIP,UserAuth);
+			if(identity.isEmpty()) {
+				return null;
+			} else {
+				return IDataStore.NewRateLimitedEndpoint(identity,endpoint);
+			}
+		} else if(this.rateLimitByUser && !UserAuth.isEmpty()) {
+			return IDataStore.NewRateLimitedUser(UserAuth);
+		} else if(this.rateLimitByIP) {
+			return IDataStore.NewRateLimitedIP(clientIP);
+		} else {
+			return null;
+		}
+	}
+	
+	@Override
+	public String IsAttemptRateLimited(RateLimitedIdentity RLIdentity) {
+		boolean requestWasRateLimited = !dataStore.RecordNewAttempt(RLIdentity,
+															  RequestLimitHits,
+															 TimeLimitSeconds);
+		if(requestWasRateLimited) {
+			switch(RLIdentity.GetRateLimitedIdentityType()) {
+				case IP:
+					return ("Found rate limited IP: " +
+						    RLIdentity.GetIdentity());
+				case User:
+					return ("Found rate limited User: " +
+						    RLIdentity.GetIdentity());
+				case Endpoint:
+					return ("Found rate limited Identity: " +
+							RLIdentity.GetIdentity() +
+							"; per resource " +
+							RLIdentity.GetEndpoint());
+				default:
+					return "Request was Rate Limited but without Type";
+		}
+		} else {
+			return "";
+		}
 	}
 
 	@Override
-	public void ServeHttp403PerUser(PrintWriter printWriter) {
-		printWriter.println("HTTP/1.1 403");
-		printWriter.println();
-		printWriter.println("Very 403. Such auth. Your Authorization is invalid, and your bloodline is weak.");
-		printWriter.flush();
+	public void ServeHttp429PerAttempt(PrintWriter printWriter, 
+									   RateLimitedIdentity RLIdentity) {
+		LocalDateTime nextAllowed = CheckWhenNextRequestAllowed(RLIdentity);
+		ServeHttpResponse(printWriter,429,TryAgainMessage(nextAllowed));
 	}
-
+	
+	/*
+	 * IRateLimiter overrides: Storing User Authorization functionality
+	 */
+	
 	@Override
-	public boolean UserAuthIsValid(String UserAuth) {
-		return (!this.approvedUsersOnly || dataStore.IsUserAuthValid(UserAuth));
-	}
-
-	@Override
-	public void StoreNewUserAuth(String UserAuth) {
+	public void StoreNewHttpAuthorization(String UserAuth) {
 		dataStore.StoreUserAuth(UserAuth);
 	}
 
 	@Override
-	public void StoreNewBasicAuth(String username, String password) {
-		dataStore.StoreUserAuth("Basic " + new String(Base64.getEncoder().encode((username+":"+password).getBytes())));
+	public void StoreNewHttpBasicAuthorization(String username, 
+											   String password) {
+		byte[] basicAuthBytes = (username+":"+password).getBytes();
+		byte[] encodedBasic = Base64.getEncoder().encode(basicAuthBytes);
+		dataStore.StoreUserAuth("Basic " + new String(encodedBasic));
+	}
+	
+	@Override
+	public void ForgetExistingHttpAuthorization(String UserAuth) {
+		dataStore.ForgetUserAuth(UserAuth);
+	}
+	
+	@Override
+	public void ForgetExistingHttpBasicAuthorization(String username, 
+			   										 String password) {
+		byte[] basicAuthBytes = (username+":"+password).getBytes();
+		byte[] encodedBasic = Base64.getEncoder().encode(basicAuthBytes);
+		dataStore.ForgetUserAuth("Basic " + new String(encodedBasic));
+	}
+	
+	@Override
+	public String ServeHttp40XPerUserAuth(PrintWriter printWriter, 
+										  String UserAuth) {
+		if(userAuthorizationExpectedButMissing(UserAuth)) {
+			ServeHttpResponse(printWriter,401,IRateLimiter.Http401Response);
+			return IRateLimiter.Http401Response;
+		} else if(userAuthorizationPresentButInvalid(UserAuth)) {
+			ServeHttpResponse(printWriter,403,IRateLimiter.Http403Response);
+			return IRateLimiter.Http403Response;
+		} else {
+			return "";
+		}
+	}
+	
+	/*
+	 * IRateLimiter overrides: Hostile IP functionality
+	 */
+	
+	@Override
+	public boolean IsIPHostile(Socket clientSocket) {
+		String IP = clientSocket.getInetAddress().getHostAddress();
+		return (this.storeHostileIPs && this.dataStore.containsHostileIP(IP));
+	}
+
+	@Override
+	public void RecordIPAsHostile(Socket clientSocket) {
+		if(this.storeHostileIPs) {
+			String IP = clientSocket.getInetAddress().getHostAddress();
+			dataStore.recordHostileIP(IP);
+		}
+	}
+	
+	@Override
+	public void ForgetIPAsHostile(Socket clientSocket) {
+		if(this.storeHostileIPs) {
+			String IP = clientSocket.getInetAddress().getHostAddress();
+			dataStore.removeHostileIP(IP);
+		}
+	}
+	
+	/*
+	 * IRateLimiter overrides: "Other" functionality
+	 */
+	
+	@Override
+	public String FormEndpointStringFromVerbAndResource(String httpVerb, 
+														String resource) {
+		return httpVerb+"|"+resource;
+	}
+	
+	/*
+	 * Helpers
+	 */
+	
+	
+	private boolean userAuthorizationExpectedButMissing(String UserAuth) {
+		return (UserAuth.isEmpty() && this.rateLimitByUser);
+	}
+	
+	private boolean userAuthorizationPresentButInvalid(String UserAuth) {
+		return (!UserAuth.isEmpty() && !UserAuthIsValid(UserAuth));
+	}
+	
+	/***
+	 * If rate limiting HTTP User Authorization Strings, return the 
+	 * Authorization header, otherwise return the IP of the opened socket
+	 * @param clientIP
+	 * @param UserAuth
+	 * @return
+	 */
+	private String GetEndpointIdentity(String clientIP, String UserAuth) {
+		if(this.rateLimitByUser && !UserAuth.isEmpty()) {
+			return UserAuth;
+		} else if(this.rateLimitByIP) {
+			return clientIP;
+		} else {
+			return "";
+		}
+	}
+	
+	// Serve Http response helpers
+	
+	private void ServeHttpResponse(PrintWriter printWriter, 
+						           int HttpCode, 
+						           String craftedErrorMessage) {
+		printWriter.println("HTTP/1.1 "+HttpCode);
+		printWriter.println();
+		printWriter.println(craftedErrorMessage);
+		printWriter.flush();
+	}
+	
+	// Serve Http 429 helper for crafting the "try again after ..." message
+	
+	private String TryAgainMessage(LocalDateTime next) {
+		long seconds = ChronoUnit.SECONDS.between(LocalDateTime.now(), next);
+		return "Rate limit exceeded. Try again in "+seconds+" seconds";
+	}
+	
+	
+	private LocalDateTime CheckWhenNextRequestAllowed(
+											RateLimitedIdentity RLIdentity) {
+		return dataStore.CheckWhenNextRequestAllowed(RLIdentity,
+													 RequestLimitHits,
+													 TimeLimitSeconds);
+	}
+	
+	private boolean UserAuthIsValid(String UserAuth) {
+		return (!this.approvedUsersOnly || dataStore.IsUserAuthValid(UserAuth));
 	}
 
 }
