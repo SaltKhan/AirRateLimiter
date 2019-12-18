@@ -8,7 +8,6 @@ import java.io.InputStreamReader;
 import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.net.ServerSocket; 
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,26 +23,31 @@ import DataStore.IDataStore;
  * injection paradigm). The IRateLimiter exposes methods for the Server class 
  * to utilise to implement a rate limiting methodology, upon a request being
  * opened by an instance of the Client class.
- *
  */
-public class Server extends ServerBase{ 
+public class Server extends ServerBase { 
 	
 	///////////////////////////////////////////////////////////////////////////
 	//                             Parameters                                //
 	///////////////////////////////////////////////////////////////////////////
 	
 	/***
-	 * 
+	 * Maps the port integers to the ServerSocketListener listening on the
+	 * ServerSocket open on that port.
 	 */
-	final private HashMap<Integer,ServerSocketListener> serverSocketListeners = new HashMap<Integer,ServerSocketListener>();
+	final private HashMap<Integer,ServerSocketListener> serverSocketListeners =
+			new HashMap<Integer,ServerSocketListener>();
 	
 	/***
-	 * 
+	 * Verbose message output to streams Out and Err
 	 */
 	private boolean verbose = false;
 	
 	/***
-	 * 
+	 * Injected instance of the rate limiter service.
+	 */
+	/* TODO: For extensibility, if more injected services were added, to make
+	 * the allocation and passing of instances of the services easier on the
+	 * constructors, a "ServiceCollection" class may be of value.
 	 */
 	final private IRateLimiter rateLimiter;
 	
@@ -72,7 +76,7 @@ public class Server extends ServerBase{
 	 * Start a server instance with a single server socket
 	 * @param port
 	 */
-	public Server(int port, IRateLimiter rateLimiter) {
+	public Server(IRateLimiter rateLimiter, int port) {
 		AddServerSocket(port);
 		this.rateLimiter = rateLimiter;
 	}
@@ -81,7 +85,7 @@ public class Server extends ServerBase{
 	 * Start a server instance with many server sockets!
 	 * @param ports
 	 */
-	public Server(int[] ports, IRateLimiter rateLimiter) {
+	public Server(IRateLimiter rateLimiter, int... ports) {
 		for(int port : ports) {
 			AddServerSocket(port);
 		}
@@ -137,18 +141,48 @@ public class Server extends ServerBase{
 	///////////////////////////////////////////////////////////////////////////
 
 	/***
-	 * Handle the case of client sockets being opened 
-	 * in their own threads. Here's the crunch!
-	 *
+	 * Handle the case of client sockets being opened in their own threads. The
+	 * rate limiting functionality is mainly segregated into this thread, using
+	 * the rate limiting service to determine (perhaps after peeking at the
+	 * request) how the connection request will be handled!
 	 */
 	private class ClientSocketListener implements Runnable {
 		
+		/***
+		 * The socket opened to handle the incoming client request
+		 */
 		final private Socket clientSocket;
+		
+		/***
+		 * Used as the input to the BufferedReader
+		 */
 		final private InputStreamReader inputStreamReader;
+		
+		/***
+		 * Used to read the tokens/headers/content of the incoming connection
+		 */
 		final private BufferedReader bufferedReader;
+		
+		/***
+		 * Used to print tokens/headers/text-content in response to the request
+		 */
 		final private PrintWriter printWriter;
+		
+		/***
+		 * A stream passed down to the request-handling/responding step, used
+		 * to print byte array for non-text-content to the generic output stream
+		 * that the PrintWriter shares.
+		 */
 		final private BufferedOutputStream bufferedOutputStream;
-		final private String authHeaderPrefix = "Authorization: ";
+		
+		/***
+		 * Constant used to detect the header that passes the authorisation
+		 * string/token, to search for the auth header and use it as part of
+		 * the rate limiting service, rate limiting based on authorisation.
+		 */
+		final static private String authHeaderPrefix = "Authorization: ";
+		
+		//TODO: Add more authorisation headers.
 		
 		/***
 		 * Instantiate IO streams related to the incoming socket connection.
@@ -171,7 +205,8 @@ public class Server extends ServerBase{
 		}
 		
 		/***
-		 * Close the streams and print a message if they fail to close
+		 * Close the streams and print a message if they fail to close, and
+		 * also print the incoming closing message.
 		 * @param closureMessage
 		 */
 		private void closeStreams(String closureMessage) {
@@ -189,7 +224,10 @@ public class Server extends ServerBase{
 		}
 		
 		/***
-		 * Responds to the incoming request, passing it through a rate limiter.
+		 * Responds to the incoming request, passing it through a rate limiter
+		 * service. This contains the actual utilisation by the server class of
+		 * the rate limiting service, besides the hostile IP prior to opening
+		 * the streams for the client socket.
 		 */
 		@Override
 		public void run() {
@@ -197,58 +235,47 @@ public class Server extends ServerBase{
 			String clientIP = clientSocket.getInetAddress().getHostAddress();
 			try {
 				// We must read the tokens and headers before rate limiting
-				
+				// Read the tokens
 				String[] tokens = ReadTokens(this.bufferedReader);
+				String method = tokens[0];
+				String resource = tokens[1];
+				String protocol = tokens[2];
+				// Read the headers
 				String[] headers = ReadHeaders(this.bufferedReader);
+				// Get the auth string from the headers.
 				String auth = AuthFromHeaders(headers);
-				String endpoint = rateLimiter
-								  .FormEndpointStringFromVerbAndResource(
-										  							tokens[0], 
-										  							tokens[1]);
+				// Use the rate limiting services to construct the end point
+				// to the requested method / resource, using the rate limiting
+				// services internal end point context.
+				String endpoint = rateLimiter.FormEndpointStringFromVerbAndResource(method,resource);
 				// Now return 401 or 403 if Auth is invalid 
 				// or missing and we need it!
-				closureMessage = rateLimiter.ServeHttp40XPerUserAuth(
-																printWriter,
-																auth);
+				closureMessage = rateLimiter.ServeHttp40XPerUserAuth(printWriter,auth);
 				if(closureMessage.isEmpty()) {
 					// Form the "rateLimitedIdentity" from the context supplied
 					// to the RateLimiter when it was instantiated. Supply the 
 					// context with the clientIP, Auth and Endpoint and 
 					// retrieve an "Identity" aware of its own context
 					IDataStore.RateLimitedIdentity rateLimitedIdentity = 
-					  rateLimiter.GetRateLimitedIdentityFromRateLimiterContext(
-							  										 clientIP,
-							  										 auth,
-							  										 endpoint);
-					// Check if the Rate Limiting context will rate 
-					// limit this attempt
-					closureMessage = rateLimiter.IsAttemptRateLimited(
-														  rateLimitedIdentity);
+					  rateLimiter.GetRateLimitedIdentityFromRateLimiterContext(clientIP,auth,endpoint);
+					// Check if the Rate Limiting context will
+					// rate limit this attempt
+					closureMessage = rateLimiter.IsAttemptRateLimited(rateLimitedIdentity);
 					if(closureMessage.isEmpty()) {
-						// If it wasn't rate limited, then handle the 
-						// request like any other.
-						HandleRequest(tokens, 
-									  headers, 
-									  bufferedReader, 
-									  printWriter, 
-									  bufferedOutputStream);
-						closureMessage = "Serviced the request from IP "+
-											clientIP+"; User "+auth+
-											"; Resource "+tokens[1];
+						// If it wasn't rate limited, then handle the request.
+						HandleRequest(method, resource, protocol, headers, bufferedReader, printWriter, bufferedOutputStream);
+						closureMessage = "Serviced the request from IP "+clientIP+"; User "+auth+"; Resource "+resource;
 					} else {
 						// If it was rate limited, then serve the 
 						// 429 for the appropriate context.
-						rateLimiter.ServeHttp429PerAttempt(printWriter,
-														  rateLimitedIdentity);
+						rateLimiter.ServeHttp429PerAttempt(printWriter,rateLimitedIdentity);
 					}
 				}
 			} catch (IOException e) {
+				// Print messages if the incoming stream couldn't be processed
+				// independent of the rate limiting service.
 				e.printStackTrace();
-				if(verbose) {
-					System.out.println("Failed to interact with the socket's "+
-							"streams, closing connection to port "+
-							clientSocket.getLocalPort()+" from "+clientIP);
-				}
+				printOutVerboseMessage("Failed to interact with the socket's streams, closing connection to port "+clientSocket.getLocalPort()+" from "+clientIP);
 			} finally {
 				closeStreams(closureMessage);
 				System.out.println();
@@ -259,7 +286,7 @@ public class Server extends ServerBase{
 		 * We expect the first line of the incoming connection to be three 
 		 * tokens; Reads the Method, Resource and Protocol
 		 * @param reader
-		 * @return
+		 * @return "Method, Resource, Protocol"
 		 * @throws IOException
 		 */
 		private String[] ReadTokens(BufferedReader reader) throws IOException {
@@ -275,21 +302,10 @@ public class Server extends ServerBase{
 			return tokens;
 		}
 		
-		private String AuthFromHeaders(String[] headers) {
-			String auth = "";
-			for(String header : headers) {
-				if(header.startsWith(authHeaderPrefix)) {
-					auth = header.substring(authHeaderPrefix.length());
-					break;
-				}
-			}
-			return auth;
-		}
-		
 		/***
 		 * Read the headers following the tokens; Read until an empty line.
 		 * @param reader
-		 * @return
+		 * @return Headers
 		 * @throws IOException
 		 */
 		private String[] ReadHeaders(BufferedReader reader) throws IOException{
@@ -303,7 +319,41 @@ public class Server extends ServerBase{
 			return headers.toArray(retHeaders);
 		}
 		
+		/***
+		 * Extracts the string passed under the authorisation header
+		 * @param headers
+		 * @return String passed under the authorisation header
+		 */
+		/* TODO: When more auth header prefixes are added, this will need a way
+		 * of reading multiple, and passing back a map from auth header to auth
+		 * token received in the headers.
+		 */
+		private String AuthFromHeaders(String[] headers) {
+			String auth = "";
+			for(String header : headers) {
+				if(header.startsWith(authHeaderPrefix)) {
+					auth = header.substring(authHeaderPrefix.length());
+					break;
+				}
+			}
+			return auth;
+		}
+		
 	}
+	
+	///////////////////////////////////////////////////////////////////////////
+	//        Handle the response sent by the Client Socket Listener         //
+	///////////////////////////////////////////////////////////////////////////
+	
+	/* TODO: Although the below are called to from the ClientSocketListener and
+	 * used to respond to the attempted incoming request, and "seem" to work,
+	 * as the focus of this task is demonstrating the rate limiting service,
+	 * and this is not how you would handle incoming or outgoing http requests
+	 * if you were actually integrating a service into an existing framework,
+	 * the below methods are not thoroughly tested beyond that they seem to
+	 * work without issue in supplying the response to the client instance
+	 * during testing of other functions.
+	 */
 	
 	/***
 	 * Handle a request that has passed the rate limiter. 
@@ -315,15 +365,17 @@ public class Server extends ServerBase{
 	 * @param bufferedOutputStream
 	 * @throws IOException
 	 */
-	private void HandleRequest(String[] tokens, 
+	private void HandleRequest(String method, 
+							   String resource, 
+							   String protocol,
 							   String[] headers, 
 							   BufferedReader reader, 
 							   PrintWriter printWriter, 
 							   BufferedOutputStream bufferedOutputStream)
 									   throws IOException {
-		System.out.println("Method: "+tokens[0]);
-		System.out.println("Resource: "+tokens[1]);
-		System.out.println("Protocol: "+tokens[2]);
+		System.out.println("Method: "+method);
+		System.out.println("Resource: "+resource);
+		System.out.println("Protocol: "+protocol);
 		for(String header : headers) {
 			System.out.println(header);
 		}
@@ -336,10 +388,7 @@ public class Server extends ServerBase{
 				line = reader.readLine();
 			}
 		}
-		ArrayList<ResponsePart> response = RouteRequest(tokens[0], 
-														tokens[1], 
-														headers, 
-														content);
+		ArrayList<ResponsePart> response = RouteRequest(method, resource, headers, content);
 		sendResponseToClient(printWriter,bufferedOutputStream,response);
 		System.out.println();
 	}
@@ -366,8 +415,6 @@ public class Server extends ServerBase{
 	/***
 	 * A class to control the flushing of strings and 
 	 * byte streams to the output streams.
-	 * @author NathanLevett
-	 *
 	 */
 	private class ResponsePart {
 		
@@ -429,8 +476,8 @@ public class Server extends ServerBase{
 		}
 	}
 	
-	public static void main(String args[]) { 
-		System.out.println(IDataStore.RateLimitedIdentity.RateLimitedIdentityType.User.toString());
-	}
+	//public static void main(String args[]) { 
+		//System.out.println(IDataStore.RateLimitedIdentity.RateLimitedIdentityType.User.toString());
+	//}
 
 }
