@@ -43,6 +43,7 @@ class ServerTest {
 			assertTrue(responses[k].split("`n")[0].contains("200"));
 		}
 		assertTrue(responses[maxAttempts].split("`n")[0].contains("429"));
+		server.CloseServerSocketListener(8085);
 	}
 
 }

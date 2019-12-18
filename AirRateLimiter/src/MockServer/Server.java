@@ -35,11 +35,6 @@ public class Server extends ServerBase{
 	/***
 	 * 
 	 */
-	final private HashMap<Integer,ServerSocket> serverSockets = new HashMap<Integer,ServerSocket>();
-	
-	/***
-	 * 
-	 */
 	final private HashMap<Integer,ServerSocketListener> serverSocketListeners = new HashMap<Integer,ServerSocketListener>();
 	
 	/***
@@ -117,26 +112,6 @@ public class Server extends ServerBase{
 	///////////////////////////////////////////////////////////////////////////
 
 	@Override
-	protected void addMappedServerSocketOpenOnPort(int port, ServerSocket socket) {
-		serverSockets.put(port, socket);
-	}
-
-	@Override
-	protected ServerSocket getServerSocketOpenOnPort(int port) {
-		return serverSockets.get(port);
-	}
-
-	@Override
-	protected ServerSocket removeServerSocketOpenOnPort(int port) {
-		return serverSockets.remove(port);
-	}
-
-	@Override
-	protected boolean isServerSocketMappedOnPort(int port) {
-		return serverSockets.containsKey(port);
-	}
-
-	@Override
 	protected void addMappedServerSocketListenerOpenOnPort(int port, ServerSocketListener socketListener) {
 		serverSocketListeners.put(port, socketListener);
 	}
@@ -152,7 +127,7 @@ public class Server extends ServerBase{
 	}
 
 	@Override
-	protected void startNewClientSocketListenerThread(Socket clientSocket) throws InterruptedIOException, IOException, HostileIP, NullPointerException {
+	protected void startNewClientSocketListenerThread(Socket clientSocket) throws InterruptedIOException, IOException, HostileIP {
 		ClientSocketListener clientSocketListener = new ClientSocketListener(clientSocket);
 		(new Thread(clientSocketListener)).start();
 	}
