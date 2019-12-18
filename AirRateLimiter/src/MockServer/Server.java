@@ -152,7 +152,7 @@ public class Server extends ServerBase{
 	}
 
 	@Override
-	protected void startNewClientSOcketListenerThread(Socket clientSocket) throws InterruptedIOException, IOException, HostileIP, NullPointerException {
+	protected void startNewClientSocketListenerThread(Socket clientSocket) throws InterruptedIOException, IOException, HostileIP, NullPointerException {
 		ClientSocketListener clientSocketListener = new ClientSocketListener(clientSocket);
 		(new Thread(clientSocketListener)).start();
 	}
@@ -182,12 +182,10 @@ public class Server extends ServerBase{
 		 * @throws IOException
 		 * @throws HostileIP
 		 */
-		public ClientSocketListener(Socket clientSocket) throws IOException,
-																HostileIP {
+		public ClientSocketListener(Socket clientSocket) throws IOException, HostileIP {
 			this.clientSocket = clientSocket;
 			if(rateLimiter.IsIPHostile(this.clientSocket)) {
-				throw new HostileIP(this.clientSocket.getInetAddress()
-													 .getHostAddress());
+				throw new HostileIP(this.clientSocket.getInetAddress().getHostAddress());
 			}
 			InputStream is = clientSocket.getInputStream();
 			this.inputStreamReader = new InputStreamReader(is);
@@ -210,14 +208,9 @@ public class Server extends ServerBase{
 				this.clientSocket.close();
 			} catch (IOException e) {
 				e.printStackTrace();
-				if(verbose) {
-					System.out.println("Failed to close a client "+
-												"socket connection");
-				}
+				printOutVerboseMessage("Failed to close a client socket connection");
 			}
-			if(verbose) {
-				System.out.println(closureMessage);
-			}
+			printOutVerboseMessage(closureMessage);
 		}
 		
 		/***
@@ -461,25 +454,8 @@ public class Server extends ServerBase{
 		}
 	}
 	
-	public static void main(String args[] )  { 
-		//IDataStore dataStore = new DataStore();
-		System.out.println(IDataStore.RateLimitedIdentity
-									 .RateLimitedIdentityType
-									 .User.toString());
-		/*
-		int maxRequests = 100;
-		int maxSeconds = 3600;
-		boolean OnlyAcceptStoredBasicAuth = false;
-		IRateLimiter rateLimiter = new RateLimiter(dataStore,maxRequests,maxSeconds,OnlyAcceptStoredBasicAuth);
-		if(OnlyAcceptStoredBasicAuth) {
-			//This is now the only user that the rate limiter will accept the auth of.
-			rateLimiter.StoreNewHttpBasicAuthorization("Garry","1234");
-		}
-		//Start the server with verbose messaging
-		Server server = new Server(true,rateLimiter);
-		server.AddServerSocket(8085);*/
+	public static void main(String args[]) { 
+		System.out.println(IDataStore.RateLimitedIdentity.RateLimitedIdentityType.User.toString());
 	}
 
-	
-	
 }
