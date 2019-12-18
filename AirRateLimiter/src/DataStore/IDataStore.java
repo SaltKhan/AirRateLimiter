@@ -9,8 +9,12 @@ import DataStore.IDataStore.RateLimitingMap;
 import DataStore.IDataStore.RateLimitedIdentity.RateLimitedIdentityType;
 
 /***
- * Mock implementation of a data store, housed in application memory
- *
+ * Mock implementation of a data store, housed in application memory. This
+ * interface follows an instance injection approach, where, for the purposes
+ * of mocking a data store in application memory, the same instance of this
+ * interfaces' actualisation should be injected into every component that 
+ * requires some capacity to "query the data store" such that they all share
+ * the same data store.
  */
 public interface IDataStore {
 	

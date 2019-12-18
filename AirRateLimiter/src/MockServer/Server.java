@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.ServerSocket; 
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.StringTokenizer;
@@ -17,17 +18,54 @@ import java.util.StringTokenizer;
 import RateLimiterService.IRateLimiter;
 import DataStore.IDataStore;
 
-
+/***
+ * The Server class designates on object to be injected with an instance of the
+ * IRateLimiter interface (or, extensibly, any actualised instance of any 
+ * interface that might be added to the design, following an interface 
+ * injection paradigm). The IRateLimiter exposes methods for the Server class 
+ * to utilise to implement a rate limiting methodology, upon a request being
+ * opened by an instance of the Client class.
+ *
+ */
 public class Server { 
 	
-	final private HashMap<Integer,ServerSocket> serverSockets 
-										 = new HashMap<Integer,ServerSocket>();
-	final private HashMap<Integer,ServerSocketListener> serverSocketListeners 
-								 = new HashMap<Integer,ServerSocketListener>();
+	///////////////////////////////////////////////////////////////////////////
+	//                             Parameters                                //
+	///////////////////////////////////////////////////////////////////////////
+	
+	/***
+	 * 
+	 */
+	final private HashMap<Integer,ServerSocket> serverSockets = new HashMap<Integer,ServerSocket>();
+	
+	/***
+	 * 
+	 */
+	final private HashMap<Integer,ServerSocketListener> serverSocketListeners = new HashMap<Integer,ServerSocketListener>();
+	
+	/***
+	 * 
+	 */
 	private boolean verbose = false;
+	
+	/***
+	 * 
+	 */
 	final private IRateLimiter rateLimiter;
+	
+	/***
+	 * 
+	 */
 	static final private int retryPolicy = 3;
+	
+	/***
+	 * 
+	 */
 	static final private int ServerSocketTimeoutSeconds = 20;
+	
+	///////////////////////////////////////////////////////////////////////////
+	//                             Constructors                              //
+	///////////////////////////////////////////////////////////////////////////
 	
 	/***
 	 * Default constructor. Adds no server sockets and leaves verbose off.
@@ -66,6 +104,10 @@ public class Server {
 		this.rateLimiter = rateLimiter;
 	}
 	
+	///////////////////////////////////////////////////////////////////////////
+	//                             Verbosity                                 //
+	///////////////////////////////////////////////////////////////////////////
+	
 	/***
 	 * Turn on verbose messages!
 	 */
@@ -81,26 +123,108 @@ public class Server {
 	}
 	
 	/***
+	 * Prints a verbose message, if set to print them.
+	 * @param verboseMessage
+	 */
+	private void printOutVerboseMessage(String verboseMessage) {
+		if(verbose) {
+			System.out.println(verboseMessage);
+		}
+	}
+	
+	///////////////////////////////////////////////////////////////////////////
+	//            Define the "Server Socket Listener" inner class            //
+	///////////////////////////////////////////////////////////////////////////
+	
+	/***
+	 * Handle the process of a server socket listening for client 
+	 * acceptance in a thread which manages the spawning of client 
+	 * socket threads, when an incoming message opens a new socket.
+	 */
+	private class ServerSocketListener implements Runnable {
+		
+		private int port;
+		private int socketFailurePolicy = 10;
+		private boolean StoppingListening;
+
+		public ServerSocketListener(int port) {
+			this.port = port;
+			this.StoppingListening = false;
+		}
+		
+		/***
+		 * Listen to the ServerSocketListener's port
+		 */
+		@Override
+		public void run() {
+			while (true) { 
+				try {
+					// Wait for a new incoming connection
+					Socket clientSocket= serverSockets.get(port).accept();
+					printOutVerboseMessage("Incoming connection to port "+port+
+									" from "+clientSocket.getInetAddress()
+														 .getHostAddress());
+					// Start a new thread to handle the incoming connection
+					ClientSocketListener clientSocketListener = 
+										new ClientSocketListener(clientSocket);
+					(new Thread(clientSocketListener)).start();
+				} catch (InterruptedIOException e) {
+					// Print a message if the timeout cycles
+					printOutVerboseMessage("The socket "+port+
+							" has timed out ("+
+							ServerSocketTimeoutSeconds+
+							" seconds) waiting for input. Will continue to listen.");
+				} catch (IOException e) {
+					e.printStackTrace();
+					// The server socket is allowed the socketFailurePolicy 
+					// many IOExceptions before the server socket's thread ends
+					socketFailurePolicy--;
+					if(socketFailurePolicy == 0) {
+						printOutVerboseMessage("The socket "+port+
+								" has failed too many times, will stop listening.");
+						break;
+					}
+				} catch (HostileIP e) {
+					// Custom exception to allow throwing the client socket
+					// if from a "hostile IP" as per the rate limiter
+					printOutVerboseMessage("Found hostile IP "+"attempt from "+e.getIP());
+					e.printStackTrace();
+				} catch (NullPointerException e) {
+					if(this.StoppingListening) {
+						printOutVerboseMessage("Null pointer tripped on port "+port+
+								"; Listener was told it was stopping!");
+						break;
+					} else {
+						printOutVerboseMessage("Null pointer tripped on port "+port+
+								"; Listener was not told to stop.");
+					}
+					e.printStackTrace();
+				}
+			}
+			CloseServerSocket(this.port);
+		}
+		
+		/***
+		 * Allows the thread to be aware that the 
+		 * socket was forced shut from outside.
+		 */
+		public void StopListening() {
+			this.StoppingListening = true;
+		}
+	}
+	
+	
+	///////////////////////////////////////////////////////////////////////////
+	//                Add a "Server Socket Listener" instance                //
+	///////////////////////////////////////////////////////////////////////////
+	
+	/***
 	 * Add a new server socket to the server instance, and 
 	 * start listening on that port
 	 * @param port
 	 */
 	public void AddServerSocket(int port) {
 		InternalAddServerSocket(port, 0);
-	}
-	
-	private void MakeANewServerSocketWithTimeout(int port) throws IOException {
-		serverSockets.put(port,new ServerSocket(port));
-		if(verbose) {
-			System.out.println("Listening for connection on port "+port);
-		}
-		serverSockets.get(port).setSoTimeout(ServerSocketTimeoutSeconds*1000);
-	}
-	
-	private Thread MakeNewThreadToListenToSocketOnPort(int port) {
-		ServerSocketListener socketListener = new ServerSocketListener(port);
-		serverSocketListeners.put(port, socketListener);
-		return (new Thread(serverSocketListeners.get(port)));
 	}
 	
 	/***
@@ -110,26 +234,104 @@ public class Server {
 	 * @param retries
 	 */
 	private void InternalAddServerSocket(int port, int retries) {
-		try {
-			MakeANewServerSocketWithTimeout(port);
+		if(MakeANewServerSocketWithTimeout(port,retries)) {
 			Thread listener = MakeNewThreadToListenToSocketOnPort(port);
 			listener.start();
+		}
+	}
+	
+	private boolean MakeANewServerSocketWithTimeout(int port, int retries) {
+		ServerSocket socket = RetryInstantiateNewServerSocketWithTimeout(port, retries);
+		if(socket == null) {
+			return false;
+		} else {
+			serverSockets.put(port,socket);
+			if(verbose) {
+				System.out.println("Listening for connection on port "+port);
+			}
+			return true;
+		}
+	}
+	
+	/***
+	 * Chain invokes both retriable
+	 * @param port
+	 * @param retries
+	 * @return
+	 */
+	private ServerSocket RetryInstantiateNewServerSocketWithTimeout(int port, int retries) {
+		return RetrySetServerSocketTimeout(RetryInstantiateNewServerSocket(port, retries), retries);
+	}
+	
+	/***
+	 * Attempts "retries" many times to instantiate a ServerSocket instance on 
+	 * "port." If the retry count is exceeded, returns null.
+	 * @param port
+	 * @param retries
+	 * @return
+	 */
+	private ServerSocket RetryInstantiateNewServerSocket(int port, int retries) {
+		try {
+			ServerSocket socket = new ServerSocket(port);
+			return socket;
 		} catch (IOException e) {
 			e.printStackTrace();
 			// Retry up to the retryPolicy many times.
 			if(retries < retryPolicy) {
 				if(verbose) {
-					System.out.println("Failed to start listening for "+
-							"connection on port "+port+"; retry "+(retries+1));
+					System.err.println("Failed to start listening for connection on port "+port+"; retry "+(retries+1));
 				}
-				InternalAddServerSocket(port, retries+1);
-			} else if(verbose) {
-				System.out.println("Failed to start listening for "+
-							"connection on port "+port+"; Has reached the "+
-											"retry maximum of "+retryPolicy); 
+				return RetryInstantiateNewServerSocket(port, retries+1);
+			} else {
+				if (verbose) {
+					System.err.println("Failed to start listening for connection on port "+port+"; Has reached the retry maximum of "+retryPolicy); 
+				}
+				return null;
 			}
 		}
 	}
+	
+	/***
+	 * Attempts "retries" many times to set the socket timeout for a 
+	 * ServerSocket instance. If the retry count is exceeded, returns null.
+	 * @param socket
+	 * @param retries
+	 * @return
+	 */
+	private ServerSocket RetrySetServerSocketTimeout(ServerSocket socket, int retries) {
+		if(socket == null) {
+			return null;
+		}
+		try {
+			socket.setSoTimeout(ServerSocketTimeoutSeconds*1000);
+			return socket;
+		} catch (SocketException e) {
+			e.printStackTrace();
+			// Retry up to the retryPolicy many times.
+			if(retries < retryPolicy) {
+				if(verbose) {
+					System.err.println("Failed to set the socket timeout for connection on port "+socket.getLocalPort()+"; retry "+(retries+1));
+				}
+				return RetrySetServerSocketTimeout(socket, retries+1);
+			} else {
+				if (verbose) {
+					System.err.println("Failed to set the socket timeout for connection on port "+socket.getLocalPort()+"; Has reached the retry maximum of "+retryPolicy); 
+				}
+				
+				return null;
+			}
+		}
+	}
+	
+	private Thread MakeNewThreadToListenToSocketOnPort(int port) {
+		ServerSocketListener socketListener = new ServerSocketListener(port);
+		serverSocketListeners.put(port, socketListener);
+		return (new Thread(serverSocketListeners.get(port)));
+	}
+	
+	///////////////////////////////////////////////////////////////////////////
+	//                          Close a Server Socket                        //
+	///////////////////////////////////////////////////////////////////////////
 	
 	/***
 	 * Close an open/existing server socket
@@ -180,94 +382,7 @@ public class Server {
 			}
 		}
 	}
-	
-	/***
-	 * Handle the process of a server socket listening for client 
-	 * acceptance in a thread which manages the spawning of client 
-	 * socket threads, when an incoming message opens a new socket.
-	 *
-	 */
-	private class ServerSocketListener implements Runnable {
-		
-		private int port;
-		private int socketFailurePolicy = 10;
-		private boolean StoppingListening;
 
-		public ServerSocketListener(int port) {
-			this.port = port;
-			this.StoppingListening = false;
-		}
-		
-		/***
-		 * Listen to the ServerSocketListener's port
-		 */
-		@Override
-		public void run() {
-			while (true) { 
-				try {
-					// Wait for a new incoming connection
-					Socket clientSocket= serverSockets.get(port).accept();
-					if(verbose) {
-						System.out.println("Incoming connection to port "+port+
-									" from "+clientSocket.getInetAddress()
-														 .getHostAddress());
-					}
-					// Start a new thread to handle the incoming connection
-					ClientSocketListener clientSocketListener = 
-										new ClientSocketListener(clientSocket);
-					(new Thread(clientSocketListener)).start();
-				} catch (InterruptedIOException e) {
-					// Print a message if the timeout cycles
-					if(verbose) {
-						System.out.println("The socket "+port+" has timed out"+
-								" ("+ServerSocketTimeoutSeconds+" seconds) "+
-								"waiting for input. Will continue to listen.");
-					}
-				} catch (IOException e) {
-					e.printStackTrace();
-					// The server socket is allowed the socketFailurePolicy 
-					// many IOExceptions before the server socket's thread ends
-					socketFailurePolicy--;
-					if(socketFailurePolicy == 0) {
-						if(verbose) {
-							System.out.println("The socket "+port+" has "+
-										"failed too many times, will stop"+
-										" listening.");
-						}
-						break;
-					}
-				} catch (HostileIP e) {
-					// Custom exception to allow throwing the client socket
-					// if from a "hostile IP" as per the rate limiter
-					if(verbose) {
-						System.out.println("Found hostile IP "+
-										   "attempt from "+e.getIP());
-					}
-					e.printStackTrace();
-				} catch (NullPointerException e) {
-					if(verbose && this.StoppingListening) {
-						System.out.println("Null pointer tripped on port "+
-								port+"; Listener was told it was stopping!");
-						break;
-					} else if (verbose) {
-						System.out.println("Null pointer tripped on port "+
-									port+"; Listener was not told to stop.");
-					}
-					e.printStackTrace();
-				}
-			}
-			CloseServerSocket(this.port);
-		}
-		
-		/***
-		 * Allows the thread to be aware that the 
-		 * socket was forced shut from outside.
-		 */
-		public void StopListening() {
-			this.StoppingListening = true;
-		}
-	}
-	
 	/***
 	 * Handle the case of client sockets being opened 
 	 * in their own threads. Here's the crunch!
