@@ -3,10 +3,7 @@ package MockServer;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.InterruptedIOException;
-import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -146,34 +143,7 @@ public class Server extends ServerBase {
 	 * the rate limiting service to determine (perhaps after peeking at the
 	 * request) how the connection request will be handled!
 	 */
-	private class ClientSocketListener implements Runnable {
-		
-		/***
-		 * The socket opened to handle the incoming client request
-		 */
-		final private Socket clientSocket;
-		
-		/***
-		 * Used as the input to the BufferedReader
-		 */
-		final private InputStreamReader inputStreamReader;
-		
-		/***
-		 * Used to read the tokens/headers/content of the incoming connection
-		 */
-		final private BufferedReader bufferedReader;
-		
-		/***
-		 * Used to print tokens/headers/text-content in response to the request
-		 */
-		final private PrintWriter printWriter;
-		
-		/***
-		 * A stream passed down to the request-handling/responding step, used
-		 * to print byte array for non-text-content to the generic output stream
-		 * that the PrintWriter shares.
-		 */
-		final private BufferedOutputStream bufferedOutputStream;
+	private class ClientSocketListener extends SocketedIOConglomerate implements Runnable {
 		
 		/***
 		 * Constant used to detect the header that passes the authorisation
@@ -192,16 +162,12 @@ public class Server extends ServerBase {
 		 * @throws HostileIP
 		 */
 		public ClientSocketListener(Socket clientSocket) throws IOException, HostileIP {
-			this.clientSocket = clientSocket;
-			if(rateLimiter.IsIPHostile(this.clientSocket)) {
-				throw new HostileIP(this.clientSocket.getInetAddress().getHostAddress());
+			super(clientSocket);
+			if(rateLimiter.IsIPHostile(getSocket())) {
+				throw new HostileIP(getSocketHostAddress());
+			} else {
+				openStreams();
 			}
-			InputStream is = clientSocket.getInputStream();
-			this.inputStreamReader = new InputStreamReader(is);
-			this.bufferedReader = new BufferedReader(inputStreamReader);
-			OutputStream os = clientSocket.getOutputStream();
-			this.printWriter = new PrintWriter(os);
-			this.bufferedOutputStream = new BufferedOutputStream(os);
 		}
 		
 		/***
@@ -211,11 +177,8 @@ public class Server extends ServerBase {
 		 */
 		private void closeStreams(String closureMessage) {
 			try {
-				this.bufferedReader.close();
-				this.inputStreamReader.close();
-				this.printWriter.close();
-				this.bufferedOutputStream.close();
-				this.clientSocket.close();
+				closeStreams();
+				closeSocket();
 			} catch (IOException e) {
 				e.printStackTrace();
 				printOutVerboseMessage("Failed to close a client socket connection");
@@ -232,7 +195,7 @@ public class Server extends ServerBase {
 		@Override
 		public void run() {
 			String closureMessage = "";
-			String clientIP = clientSocket.getInetAddress().getHostAddress();
+			String clientIP = getSocketHostAddress();
 			try {
 				// We must read the tokens and headers before rate limiting
 				// Read the tokens
@@ -275,7 +238,7 @@ public class Server extends ServerBase {
 				// Print messages if the incoming stream couldn't be processed
 				// independent of the rate limiting service.
 				e.printStackTrace();
-				printOutVerboseMessage("Failed to interact with the socket's streams, closing connection to port "+clientSocket.getLocalPort()+" from "+clientIP);
+				printOutVerboseMessage("Failed to interact with the socket's streams, closing connection to port "+getSocketPort()+" from "+clientIP);
 			} finally {
 				closeStreams(closureMessage);
 				System.out.println();

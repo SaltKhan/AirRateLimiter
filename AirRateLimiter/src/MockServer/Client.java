@@ -1,27 +1,27 @@
 package MockServer;
 
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.net.Socket;
 import java.util.Base64;
 
-public class Client {
-
-	/*
-	 * The members of the "client" are such that you need a new instance
-	 * for every connection you attempt to make to the server class
-	 */
-	final private String targetURL;
-	final private int targetPort;
-	private Socket socket;
-	private InputStreamReader inputStreamReader;
-	private BufferedReader bufferedReader;
-	private PrintWriter printWriter;
-	private BufferedOutputStream bufferedOutputStream;
+/***
+ * The "Client" class serves as a class with which to test the (rate-limiting)
+ * functionality of the server class, utilised as an abstracted way of opening
+ * socket requests against an open socket of the server class, such that a
+ * client has no visibility on the (rate-limiting) activity of the server,
+ * besides the response from the server upon a request being made. In this way,
+ * a client is used to make repeated requests of different types, to track
+ * whether and when specific attempts are (rate-limited) or rejected.
+ * 
+ * The members of the "client" are such that you need a new instance for every 
+ * connection you attempt to make to the server class, where each connection
+ * has a unique "method", "target resource", "user credentials" & "basic auth"
+ */
+public class Client extends SocketedIOConglomerate {
+	
+	///////////////////////////////////////////////////////////////////////////
+	//                             Parameters                                //
+	///////////////////////////////////////////////////////////////////////////
+	
 	final private String method;
 	final private String targetResource;
 	final private String userCredentials;
@@ -29,7 +29,7 @@ public class Client {
 	
 	/***
 	 * Construct a Client without an attached socket or streams
-	 * @param targetURL
+	 * @param targetHost
 	 * @param targetPort
 	 * @param method
 	 * @param targetResource
@@ -37,19 +37,17 @@ public class Client {
 	 * @param password
 	 * @throws IOException
 	 */
-	public Client(String targetURL, 
+	public Client(String targetHost, 
 				  int targetPort, 
 				  String method, 
 				  String targetResource, 
 				  String username, 
 				  String password) throws IOException {
-		this.targetURL = targetURL;
-		this.targetPort = targetPort;
+		super(targetHost,targetPort);
 		this.method = method;
 		this.targetResource = targetResource;
 		this.userCredentials = username+":"+password;
-		this.basicAuth = "Basic " + new String(Base64.getEncoder()
-									 .encode(this.userCredentials.getBytes()));
+		this.basicAuth = "Basic " + new String(Base64.getEncoder().encode(this.userCredentials.getBytes()));
 	}
 	
 	/***
@@ -59,6 +57,7 @@ public class Client {
 	 * @throws IOException
 	 */
 	public String SubmitRequest() throws IOException {
+		reconnectSocket();
 		openStreams();
 		writeHeaders();
 	    StringBuilder response = new StringBuilder();
@@ -68,20 +67,8 @@ public class Client {
 	      response.append('\r');
 	    }
 	    closeStreams();
+	    closeSocket();
 	    return response.toString();
-	}
-	
-	/***
-	 * Open the socket and attach the streams to the socket
-	 * @throws IOException
-	 */
-	public void openStreams() throws IOException {
-		socket = new Socket(targetURL,targetPort);
-		OutputStream os = socket.getOutputStream();
-		inputStreamReader = new InputStreamReader(socket.getInputStream());
-		bufferedReader = new BufferedReader(inputStreamReader);
-		printWriter = new PrintWriter(os);
-		bufferedOutputStream = new BufferedOutputStream(os);
 	}
 	
 	/***
@@ -93,30 +80,6 @@ public class Client {
 	    printWriter.println("Authorization: "+this.basicAuth);
 	    printWriter.println();
 	    printWriter.flush();
-	}
-	
-	/***
-	 * Close the streams and then the socket.
-	 * @throws IOException
-	 */
-	public void closeStreams() throws IOException {
-		this.bufferedReader.close();
-		this.inputStreamReader.close();
-		this.printWriter.close();
-		this.bufferedOutputStream.close();
-		this.socket.close();
-	}
-	
-	
-	public static void main(String args[] ) throws IOException  { 
-		Client client = new Client("localhost",
-								   8085,
-								   "GET",
-								   "GG/M8",
-								   "VeryUser",
-								   "SuchPassword");
-		String response = client.SubmitRequest();
-		System.out.println(response);
 	}
 	
 }
