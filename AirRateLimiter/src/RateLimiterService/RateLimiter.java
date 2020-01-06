@@ -10,9 +10,9 @@ import DataStore.IDataStore;
 import DataStore.IDataStore.RateLimitedIdentity;
 
 /***
- * Implements the expectations of the IRateLimiter
+ * Implements the expectations of the AbstractRateLimiter
  */
-public class RateLimiter implements IRateLimiter {
+public class RateLimiter extends AbstractRateLimiter {
 
 	final private boolean storeHostileIPs;
 	final private boolean rateLimitByIP;
@@ -74,8 +74,8 @@ public class RateLimiter implements IRateLimiter {
 					   boolean rateLimitByEndpoint, 
 					   boolean approvedUsersOnly, 
 					   boolean demandsUserAuth) {
-		this.RequestLimitHits = IRateLimiter.RequestLimitHits_Standard;
-		this.TimeLimitSeconds = IRateLimiter.TimeLimitSeconds_Standard;
+		this.RequestLimitHits = AbstractRateLimiter.RequestLimitHits_Standard;
+		this.TimeLimitSeconds = AbstractRateLimiter.TimeLimitSeconds_Standard;
 		this.storeHostileIPs = storeHostileIPs;
 		this.rateLimitByIP = rateLimitByIP;
 		this.rateLimitByUser = rateLimitByUser;
@@ -99,10 +99,10 @@ public class RateLimiter implements IRateLimiter {
 					   boolean approvedUsersOnly) {
 		this.RequestLimitHits = RequestLimitHits;
 		this.TimeLimitSeconds = TimeLimitSeconds;
-		this.storeHostileIPs = IRateLimiter.StoreHostileIPs_Standard;
-		this.rateLimitByIP = IRateLimiter.RateLimitByIP_Standard;
-		this.rateLimitByUser = IRateLimiter.RateLimitByUser_Standard;
-		this.rateLimitByEndpoint = IRateLimiter.RateLimitByEndpoint_Standard;
+		this.storeHostileIPs = AbstractRateLimiter.StoreHostileIPs_Standard;
+		this.rateLimitByIP = AbstractRateLimiter.RateLimitByIP_Standard;
+		this.rateLimitByUser = AbstractRateLimiter.RateLimitByUser_Standard;
+		this.rateLimitByEndpoint = AbstractRateLimiter.RateLimitByEndpoint_Standard;
 		this.approvedUsersOnly = approvedUsersOnly;
 		this.dataStore = dataStore;
 	}
@@ -114,13 +114,13 @@ public class RateLimiter implements IRateLimiter {
 	 * @param dataStore
 	 */
 	public RateLimiter(IDataStore dataStore) {
-		this.RequestLimitHits = IRateLimiter.RequestLimitHits_Standard;
-		this.TimeLimitSeconds = IRateLimiter.TimeLimitSeconds_Standard;
-		this.storeHostileIPs = IRateLimiter.StoreHostileIPs_Standard;
-		this.rateLimitByIP = IRateLimiter.RateLimitByIP_Standard;
-		this.rateLimitByUser = IRateLimiter.RateLimitByUser_Standard;
-		this.rateLimitByEndpoint = IRateLimiter.RateLimitByEndpoint_Standard;
-		this.approvedUsersOnly = IRateLimiter.ApprovedUsersOnly_Standard;
+		this.RequestLimitHits = AbstractRateLimiter.RequestLimitHits_Standard;
+		this.TimeLimitSeconds = AbstractRateLimiter.TimeLimitSeconds_Standard;
+		this.storeHostileIPs = AbstractRateLimiter.StoreHostileIPs_Standard;
+		this.rateLimitByIP = AbstractRateLimiter.RateLimitByIP_Standard;
+		this.rateLimitByUser = AbstractRateLimiter.RateLimitByUser_Standard;
+		this.rateLimitByEndpoint = AbstractRateLimiter.RateLimitByEndpoint_Standard;
+		this.approvedUsersOnly = AbstractRateLimiter.ApprovedUsersOnly_Standard;
 		this.dataStore = dataStore;
 	}
 	
@@ -167,7 +167,7 @@ public class RateLimiter implements IRateLimiter {
 	}
 	
 	/*
-	 * IRateLimiter overrides: The three getters that are stipulated
+	 * AbstractRateLimiter overrides: The three getters that are stipulated
 	 */
 	
 	@Override
@@ -186,7 +186,7 @@ public class RateLimiter implements IRateLimiter {
 	}
 	
 	/*
-	 * IRateLimiter overrides: The main functionality
+	 * AbstractRateLimiter overrides: The main functionality
 	 */
 	
 	@Override
@@ -244,7 +244,7 @@ public class RateLimiter implements IRateLimiter {
 	}
 	
 	/*
-	 * IRateLimiter overrides: Storing User Authorization functionality
+	 * AbstractRateLimiter overrides: Storing User Authorization functionality
 	 */
 	
 	@Override
@@ -277,18 +277,18 @@ public class RateLimiter implements IRateLimiter {
 	public String ServeHttp40XPerUserAuth(PrintWriter printWriter, 
 										  String UserAuth) {
 		if(userAuthorizationExpectedButMissing(UserAuth)) {
-			ServeHttpResponse(printWriter,401,IRateLimiter.Http401Response);
-			return IRateLimiter.Http401Response;
+			ServeHttpResponse(printWriter,401,AbstractRateLimiter.Http401Response);
+			return AbstractRateLimiter.Http401Response;
 		} else if(userAuthorizationPresentButInvalid(UserAuth)) {
-			ServeHttpResponse(printWriter,403,IRateLimiter.Http403Response);
-			return IRateLimiter.Http403Response;
+			ServeHttpResponse(printWriter,403,AbstractRateLimiter.Http403Response);
+			return AbstractRateLimiter.Http403Response;
 		} else {
 			return "";
 		}
 	}
 	
 	/*
-	 * IRateLimiter overrides: Hostile IP functionality
+	 * AbstractRateLimiter overrides: Hostile IP functionality
 	 */
 	
 	@Override
@@ -314,12 +314,11 @@ public class RateLimiter implements IRateLimiter {
 	}
 	
 	/*
-	 * IRateLimiter overrides: "Other" functionality
+	 * AbstractRateLimiter overrides: "Other" functionality
 	 */
 	
 	@Override
-	public String FormEndpointStringFromVerbAndResource(String httpVerb, 
-														String resource) {
+	public String FormEndpointStringFromVerbAndResource(String httpVerb, String resource) {
 		return httpVerb+"|"+resource;
 	}
 	

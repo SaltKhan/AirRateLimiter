@@ -10,7 +10,7 @@ import DataStore.DataStore;
 import DataStore.IDataStore;
 import MockServer.Client;
 import MockServer.Server;
-import RateLimiterService.IRateLimiter;
+import RateLimiterService.AbstractRateLimiter;
 import RateLimiterService.RateLimiter;
 
 class ServerTest {
@@ -22,7 +22,7 @@ class ServerTest {
 		//Allow 5 per 10 seconds
 		int maxAttempts = 5;
 		int maxSeconds = 2;
-		IRateLimiter rateLimiter = new RateLimiter(dataStore,maxAttempts,maxSeconds,false);
+		AbstractRateLimiter rateLimiter = new RateLimiter(dataStore,maxAttempts,maxSeconds,false);
 		Server server = new Server(true,rateLimiter);
 		server.AddServerSocket(8085);
 		Client client = new Client("localhost",8085,"GET","GG/M8","SuchUser","VeryPassword");

@@ -10,14 +10,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.StringTokenizer;
 
-import RateLimiterService.IRateLimiter;
+import RateLimiterService.AbstractRateLimiter;
 import DataStore.IDataStore;
 
 /***
  * The Server class designates on object to be injected with an instance of the
- * IRateLimiter interface (or, extensibly, any actualised instance of any 
+ * AbstractRateLimiter interface (or, extensibly, any actualised instance of any 
  * interface that might be added to the design, following an interface 
- * injection paradigm). The IRateLimiter exposes methods for the Server class 
+ * injection paradigm). The AbstractRateLimiter exposes methods for the Server class 
  * to utilise to implement a rate limiting methodology, upon a request being
  * opened by an instance of the Client class.
  */
@@ -46,7 +46,7 @@ public class Server extends ServerBase {
 	 * the allocation and passing of instances of the services easier on the
 	 * constructors, a "ServiceCollection" class may be of value.
 	 */
-	final private IRateLimiter rateLimiter;
+	final private AbstractRateLimiter rateLimiter;
 	
 	///////////////////////////////////////////////////////////////////////////
 	//                             Constructors                              //
@@ -55,7 +55,7 @@ public class Server extends ServerBase {
 	/***
 	 * Default constructor. Adds no server sockets and leaves verbose off.
 	 */
-	public Server(IRateLimiter rateLimiter) {
+	public Server(AbstractRateLimiter rateLimiter) {
 		this.rateLimiter = rateLimiter;
 	}
 	
@@ -64,7 +64,7 @@ public class Server extends ServerBase {
 	 * to start with verbose on or off.
 	 * @param verbosity
 	 */
-	public Server(boolean verbosity, IRateLimiter rateLimiter) {
+	public Server(boolean verbosity, AbstractRateLimiter rateLimiter) {
 		this.verbose = verbosity;
 		this.rateLimiter = rateLimiter;
 	}
@@ -73,7 +73,7 @@ public class Server extends ServerBase {
 	 * Start a server instance with a single server socket
 	 * @param port
 	 */
-	public Server(IRateLimiter rateLimiter, int port) {
+	public Server(AbstractRateLimiter rateLimiter, int port) {
 		AddServerSocket(port);
 		this.rateLimiter = rateLimiter;
 	}
@@ -82,7 +82,7 @@ public class Server extends ServerBase {
 	 * Start a server instance with many server sockets!
 	 * @param ports
 	 */
-	public Server(IRateLimiter rateLimiter, int... ports) {
+	public Server(AbstractRateLimiter rateLimiter, int... ports) {
 		for(int port : ports) {
 			AddServerSocket(port);
 		}
