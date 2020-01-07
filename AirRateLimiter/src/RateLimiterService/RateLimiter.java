@@ -15,6 +15,7 @@ import DataStore.IDataStore.RateLimitedIdentity;
 public class RateLimiter extends AbstractRateLimiter {
 
 	final private RateLimitingBehaviour rateLimitingBehaviour;
+	
 	final private IDataStore dataStore;
 	
 	/*
@@ -23,7 +24,7 @@ public class RateLimiter extends AbstractRateLimiter {
 	
 	/***
 	 * The most generic constructor. Assign everything
-	 * @param dataStore
+	 * @param GetDataStoreInstance()
 	 * @param RequestLimitHits
 	 * @param TimeLimitSeconds
 	 * @param storeHostileIPs
@@ -53,7 +54,7 @@ public class RateLimiter extends AbstractRateLimiter {
 	/***
 	 * Constructor generic to everything other 
 	 * than predefined rate at which to limit
-	 * @param dataStore
+	 * @param GetDataStoreInstance()
 	 * @param storeHostileIPs
 	 * @param rateLimitByIP
 	 * @param rateLimitByUser
@@ -80,7 +81,7 @@ public class RateLimiter extends AbstractRateLimiter {
 	 * Make a rate limiter which limits on End-points per User identities,
 	 * but allow generic assignment of the approvedUsers and 
 	 * the metrics by which the rate limiter operates.
-	 * @param dataStore
+	 * @param GetDataStoreInstance()
 	 * @param RequestLimitHits
 	 * @param TimeLimitSeconds
 	 * @param approvedUsersOnly
@@ -94,12 +95,16 @@ public class RateLimiter extends AbstractRateLimiter {
 	 * Least generic constructor. Makes a RateLimiter with the standard
 	 * rate at which to limit, which limits on End-points per User Identities
 	 * Must assign an IDataStore.
-	 * @param dataStore
+	 * @param GetDataStoreInstance()
 	 */
 	public RateLimiter(IDataStore dataStore) {
 		this.rateLimitingBehaviour = new RateLimitingBehaviour();
 		this.dataStore = dataStore;
 	}
+	
+	/*
+	 * Getter overrides
+	 */
 	
 	@Override
 	public RateLimitingBehaviour GetRateLimitingBehaviour() {
@@ -117,29 +122,8 @@ public class RateLimiter extends AbstractRateLimiter {
 	 */
 	
 	@Override
-	public RateLimitedIdentity GetRateLimitedIdentityFromRateLimiterContext(
-															 String clientIP,
-													         String UserAuth,
-															 String endpoint) {
-		if(this.GetRateLimitByEndpoint()) {
-			String identity = GetEndpointIdentity(clientIP,UserAuth);
-			if(identity.isEmpty()) {
-				return null;
-			} else {
-				return IDataStore.NewRateLimitedEndpoint(identity,endpoint);
-			}
-		} else if(this.GetRateLimitByUser() && !UserAuth.isEmpty()) {
-			return IDataStore.NewRateLimitedUser(UserAuth);
-		} else if(this.GetRateLimitByIP()) {
-			return IDataStore.NewRateLimitedIP(clientIP);
-		} else {
-			return null;
-		}
-	}
-	
-	@Override
 	public String IsAttemptRateLimited(RateLimitedIdentity RLIdentity) {
-		boolean requestWasRateLimited = !dataStore.RecordNewAttempt(RLIdentity,
+		boolean requestWasRateLimited = !GetDataStoreInstance().RecordNewAttempt(RLIdentity,
 															  GetRequestLimitHits(),
 															  GetTimeLimitSeconds());
 		if(requestWasRateLimited) {
@@ -167,7 +151,7 @@ public class RateLimiter extends AbstractRateLimiter {
 	public void ServeHttp429PerAttempt(PrintWriter printWriter, 
 									   RateLimitedIdentity RLIdentity) {
 		LocalDateTime nextAllowed = CheckWhenNextRequestAllowed(RLIdentity);
-		ServeHttpResponse(printWriter,429,TryAgainMessage(nextAllowed));
+		ServeHttpErrorResponse(printWriter,429,TryAgainMessage(nextAllowed));
 	}
 	
 	/*
@@ -176,7 +160,7 @@ public class RateLimiter extends AbstractRateLimiter {
 	
 	@Override
 	public void StoreNewHttpAuthorization(String UserAuth) {
-		dataStore.StoreUserAuth(UserAuth);
+		GetDataStoreInstance().StoreUserAuth(UserAuth);
 	}
 
 	@Override
@@ -184,12 +168,12 @@ public class RateLimiter extends AbstractRateLimiter {
 											   String password) {
 		byte[] basicAuthBytes = (username+":"+password).getBytes();
 		byte[] encodedBasic = Base64.getEncoder().encode(basicAuthBytes);
-		dataStore.StoreUserAuth("Basic " + new String(encodedBasic));
+		GetDataStoreInstance().StoreUserAuth("Basic " + new String(encodedBasic));
 	}
 	
 	@Override
 	public void ForgetExistingHttpAuthorization(String UserAuth) {
-		dataStore.ForgetUserAuth(UserAuth);
+		GetDataStoreInstance().ForgetUserAuth(UserAuth);
 	}
 	
 	@Override
@@ -197,113 +181,21 @@ public class RateLimiter extends AbstractRateLimiter {
 			   										 String password) {
 		byte[] basicAuthBytes = (username+":"+password).getBytes();
 		byte[] encodedBasic = Base64.getEncoder().encode(basicAuthBytes);
-		dataStore.ForgetUserAuth("Basic " + new String(encodedBasic));
+		GetDataStoreInstance().ForgetUserAuth("Basic " + new String(encodedBasic));
 	}
 	
 	@Override
 	public String ServeHttp40XPerUserAuth(PrintWriter printWriter, 
 										  String UserAuth) {
 		if(userAuthorizationExpectedButMissing(UserAuth)) {
-			ServeHttpResponse(printWriter,401,AbstractRateLimiter.Http401Response);
+			ServeHttpErrorResponse(printWriter,401,AbstractRateLimiter.Http401Response);
 			return AbstractRateLimiter.Http401Response;
 		} else if(userAuthorizationPresentButInvalid(UserAuth)) {
-			ServeHttpResponse(printWriter,403,AbstractRateLimiter.Http403Response);
+			ServeHttpErrorResponse(printWriter,403,AbstractRateLimiter.Http403Response);
 			return AbstractRateLimiter.Http403Response;
 		} else {
 			return "";
 		}
-	}
-	
-	/*
-	 * AbstractRateLimiter overrides: Hostile IP functionality
-	 */
-	
-	@Override
-	public boolean IsIPHostile(Socket clientSocket) {
-		String IP = clientSocket.getInetAddress().getHostAddress();
-		return (GetStoreHostileIPs() && this.dataStore.containsHostileIP(IP));
-	}
-
-	@Override
-	public void RecordIPAsHostile(Socket clientSocket) {
-		if(GetStoreHostileIPs()) {
-			String IP = clientSocket.getInetAddress().getHostAddress();
-			dataStore.recordHostileIP(IP);
-		}
-	}
-	
-	@Override
-	public void ForgetIPAsHostile(Socket clientSocket) {
-		if(GetStoreHostileIPs()) {
-			String IP = clientSocket.getInetAddress().getHostAddress();
-			dataStore.removeHostileIP(IP);
-		}
-	}
-	
-	/*
-	 * AbstractRateLimiter overrides: "Other" functionality
-	 */
-	
-	@Override
-	public String FormEndpointStringFromVerbAndResource(String httpVerb, String resource) {
-		return httpVerb+"|"+resource;
-	}
-	
-	/*
-	 * Helpers
-	 */
-	
-	
-	private boolean userAuthorizationExpectedButMissing(String UserAuth) {
-		return (UserAuth.isEmpty() && GetRateLimitByUser());
-	}
-	
-	private boolean userAuthorizationPresentButInvalid(String UserAuth) {
-		return (!UserAuth.isEmpty() && !UserAuthIsValid(UserAuth));
-	}
-	
-	/***
-	 * If rate limiting HTTP User Authorization Strings, return the 
-	 * Authorization header, otherwise return the IP of the opened socket
-	 * @param clientIP
-	 * @param UserAuth
-	 * @return
-	 */
-	private String GetEndpointIdentity(String clientIP, String UserAuth) {
-		if(GetRateLimitByUser() && !UserAuth.isEmpty()) {
-			return UserAuth;
-		} else if(GetRateLimitByIP()) {
-			return clientIP;
-		} else {
-			return "";
-		}
-	}
-	
-	// Serve Http response helpers
-	
-	private void ServeHttpResponse(PrintWriter printWriter, 
-						           int HttpCode, 
-						           String craftedErrorMessage) {
-		printWriter.println("HTTP/1.1 "+HttpCode);
-		printWriter.println();
-		printWriter.println(craftedErrorMessage);
-		printWriter.flush();
-	}
-	
-	// Serve Http 429 helper for crafting the "try again after ..." message
-	
-	private String TryAgainMessage(LocalDateTime next) {
-		long seconds = ChronoUnit.SECONDS.between(LocalDateTime.now(), next);
-		return "Rate limit exceeded. Try again in "+seconds+" seconds";
-	}
-	
-	
-	private LocalDateTime CheckWhenNextRequestAllowed(RateLimitedIdentity RLIdentity) {
-		return dataStore.CheckWhenNextRequestAllowed(RLIdentity,GetRequestLimitHits(),GetTimeLimitSeconds());
-	}
-	
-	private boolean UserAuthIsValid(String UserAuth) {
-		return (!GetApprovedUsersOnly() || dataStore.IsUserAuthValid(UserAuth));
 	}
 
 }

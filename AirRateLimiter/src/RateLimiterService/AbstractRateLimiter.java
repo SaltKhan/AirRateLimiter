@@ -2,6 +2,8 @@ package RateLimiterService;
 
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 import DataStore.IDataStore;
 import DataStore.IDataStore.RateLimitedIdentity;
@@ -104,7 +106,22 @@ public abstract class AbstractRateLimiter {
 	 * @param endpoint
 	 * @return
 	 */
-	public abstract RateLimitedIdentity GetRateLimitedIdentityFromRateLimiterContext(String clientIP, String UserAuth, String endpoint);  //TODO
+	final public RateLimitedIdentity GetRateLimitedIdentityFromRateLimiterContext(String clientIP, String UserAuth, String endpoint){
+		if(GetRateLimitByEndpoint()) {
+			String identity = GetEndpointIdentity(clientIP,UserAuth);
+			if(identity.isEmpty()) {
+				return null;
+			} else {
+				return IDataStore.NewRateLimitedEndpoint(identity,endpoint);
+			}
+		} else if(GetRateLimitByUser() && !UserAuth.isEmpty()) {
+			return IDataStore.NewRateLimitedUser(UserAuth);
+		} else if(GetRateLimitByIP()) {
+			return IDataStore.NewRateLimitedIP(clientIP);
+		} else {
+			return null;
+		}
+	}
 	
 	/***
 	 * Takes a RateLimitedIdentity, and queries the appropriate lookup table in
@@ -126,18 +143,6 @@ public abstract class AbstractRateLimiter {
 	 */
 	public abstract void ServeHttp429PerAttempt(PrintWriter printWriter, RateLimitedIdentity rateLimitedIdentity); //TODO
 	
-	/*
-	 * Non-main functionalities: Check for a hostile IP
-	 * And formalize the construction of the "end-point" string.
-	 */
-	
-	/***
-	 * Returns true if the IP address for an opened socket is known hostile
-	 * @param clientSocket
-	 */
-	public abstract boolean IsIPHostile(Socket clientSocket); //TODO
-	
-	
 	/***
 	 * Creating a rate limited identity relies on a consistent formatting for
 	 * the "end-point" string, observed as the gluing of the HttpVerb and 
@@ -149,7 +154,9 @@ public abstract class AbstractRateLimiter {
 	 * @param resource
 	 * @return
 	 */
-	public abstract String FormEndpointStringFromVerbAndResource(String httpVerb, String resource); //TODO
+	final public String FormEndpointStringFromVerbAndResource(String httpVerb, String resource) {
+		return httpVerb+"|"+resource;
+	}
 	
 	/*
 	 * Non-main functionalities; Storing user authentication
@@ -207,21 +214,94 @@ public abstract class AbstractRateLimiter {
 	 */
 	static final public String Http403Response = ("Very 403. Such auth. Your Authorization is invalid, and your bloodline is weak.");
 	
-	/*
-	 * Non-main functionalities: Check for a hostile IP
-	 * And formalize the construction of the "end-point" string.
+	/***
+	 * If rate limiting HTTP User Authorization Strings, return the 
+	 * Authorization header, otherwise return the IP of the opened socket
+	 * @param clientIP
+	 * @param UserAuth
+	 * @return
 	 */
+	private String GetEndpointIdentity(String clientIP, String UserAuth) {
+		if(GetRateLimitByUser() && !UserAuth.isEmpty()) {
+			return UserAuth;
+		} else if(GetRateLimitByIP()) {
+			return clientIP;
+		} else {
+			return "";
+		}
+	}
+	
+	/*
+	 * AbstractRateLimiter overrides: Hostile IP functionality
+	 */
+	
+	/***
+	 * Returns true if the IP address for an opened socket is known hostile
+	 * @param clientSocket
+	 */
+	final public boolean IsIPHostile(Socket clientSocket) {
+		String IP = clientSocket.getInetAddress().getHostAddress();
+		return (GetStoreHostileIPs() && this.GetDataStoreInstance().containsHostileIP(IP));
+	}
+
 
 	/***
 	 * Stores the IP of a Socket in the IDataStore instance as being hostile.
 	 * @param clientSocket
 	 */
-	abstract public void RecordIPAsHostile(Socket clientSocket);
+	final public void RecordIPAsHostile(Socket clientSocket) {
+		if(GetStoreHostileIPs()) {
+			String IP = clientSocket.getInetAddress().getHostAddress();
+			GetDataStoreInstance().recordHostileIP(IP);
+		}
+	}
 	
 	/***
 	 * Forgets the IP of a Socket in the IDataStore instance as being hostile.
 	 * @param clientSocket
 	 */
-	abstract public void ForgetIPAsHostile(Socket clientSocket);
-
+	final public void ForgetIPAsHostile(Socket clientSocket) {
+		if(GetStoreHostileIPs()) {
+			String IP = clientSocket.getInetAddress().getHostAddress();
+			GetDataStoreInstance().removeHostileIP(IP);
+		}
+	}
+	
+	/*
+	 * Helpers
+	 */
+	
+	protected boolean userAuthorizationExpectedButMissing(String UserAuth) {
+		return (UserAuth.isEmpty() && GetRateLimitByUser());
+	}
+	
+	protected boolean userAuthorizationPresentButInvalid(String UserAuth) {
+		return (!UserAuth.isEmpty() && !UserAuthIsValid(UserAuth));
+	}
+	
+	// Serve Http response helpers
+	
+	protected void ServeHttpErrorResponse(PrintWriter printWriter, int HttpCode, String craftedErrorMessage) {
+		printWriter.println("HTTP/1.1 "+HttpCode);
+		printWriter.println();
+		printWriter.println(craftedErrorMessage);
+		printWriter.flush();
+	}
+	
+	// Serve Http 429 helper for crafting the "try again after ..." message
+	
+	protected String TryAgainMessage(LocalDateTime next) {
+		long seconds = ChronoUnit.SECONDS.between(LocalDateTime.now(), next);
+		return "Rate limit exceeded. Try again in "+seconds+" seconds";
+	}
+	
+	
+	protected LocalDateTime CheckWhenNextRequestAllowed(RateLimitedIdentity RLIdentity) {
+		return GetDataStoreInstance().CheckWhenNextRequestAllowed(RLIdentity,GetRequestLimitHits(),GetTimeLimitSeconds());
+	}
+	
+	protected boolean UserAuthIsValid(String UserAuth) {
+		return (!GetApprovedUsersOnly() || GetDataStoreInstance().IsUserAuthValid(UserAuth));
+	}
+	
 }
