@@ -13,7 +13,78 @@ import DataStore.IDataStore.RateLimitedIdentity;
  * receiving. Also provides a way of assigning or recording and checking
  * against stored records for approved users, or hostile IP.
  */
-public abstract class AbstractRateLimiter implements IRateLimiterTestSurface {
+public abstract class AbstractRateLimiter {
+	
+	/*
+	 * The two components required of any rate limiter.
+	 */
+	
+	/***
+	 * @return The behaviour definition for the rate limiter
+	 */
+	abstract public RateLimitingBehaviour GetRateLimitingBehaviour();
+	
+	/***
+	 * @return The IDataStore instance against which the AbstractRateLimiter stores data
+	 */
+	abstract public IDataStore GetDataStoreInstance();
+	
+	/*
+	 * Getters
+	 */
+	
+	/***
+	 * @return How many requests are allowed per time-frame
+	 */
+	final public int GetRequestLimitHits(){
+		return this.GetRateLimitingBehaviour().RequestLimitHits;
+	}
+	
+	/***
+	 * @return How long the time-frame is, in seconds, in which we allow the
+	 * maximum number of requests.
+	 */
+	final public int GetTimeLimitSeconds(){
+		return this.GetRateLimitingBehaviour().TimeLimitSeconds;
+	}
+	
+	/***
+	 * @return true if hostile IPs are being stored against the IDataStore,
+	 * otherwise false
+	 */
+	final public boolean GetStoreHostileIPs() {
+		return this.GetRateLimitingBehaviour().StoreHostileIPs;
+	}
+	
+	/***
+	 * @return true if we are rate limiting by IPs, otherwise false
+	 */
+	final public boolean GetRateLimitByIP() {
+		return this.GetRateLimitingBehaviour().RateLimitByIP;
+	}
+	
+	/***
+	 * @return true if we are rate limiting by HTTP User Authorization,
+	 * otherwise false
+	 */
+	final public boolean GetRateLimitByUser() {
+		return this.GetRateLimitingBehaviour().RateLimitByUser;
+	}
+
+	/***
+	 * @return true if we are rate limiting by end-points, otherwise false
+	 */
+	final public boolean GetRateLimitByEndpoint() {
+		return this.GetRateLimitingBehaviour().RateLimitByEndpoint;
+	}
+	
+	/***
+	 * @return true if we are only allowing stored pre-approved HTTP User
+	 * Authorization strings, otherwise false
+	 */
+	final public boolean GetApprovedUsersOnly() {
+		return this.GetRateLimitingBehaviour().ApprovedUsersOnly;
+	}
 	
 	/*
 	 * The "main functionality" of the AbstractRateLimiter
@@ -80,4 +151,77 @@ public abstract class AbstractRateLimiter implements IRateLimiterTestSurface {
 	 */
 	public abstract String FormEndpointStringFromVerbAndResource(String httpVerb, String resource); //TODO
 	
+	/*
+	 * Non-main functionalities; Storing user authentication
+	 * and serving Http401 or Http403 responses. Based on UserAuth 
+	 * strings obtained through HTTP headers
+	 */
+	
+	/***
+	 * Store user authorization strings to be validated against a list of
+	 * approved users, if we require users are validated
+	 * @param UserAuth
+	 */
+	abstract public void StoreNewHttpAuthorization(String UserAuth);
+	
+	/***
+	 * Store user authorization strings formed as HTTP Basic Authorization to
+	 * be validated against a list of approved users, if we 
+	 * require users are validated
+	 * @param username
+	 * @param password
+	 */
+	abstract public void StoreNewHttpBasicAuthorization(String username, String password);
+	
+	/***
+	 * Forgets user authorization strings to be validated against a list of
+	 * approved users, if we require users are validated
+	 * @param UserAuth
+	 */
+	abstract public void ForgetExistingHttpAuthorization(String UserAuth);
+	
+	/***
+	 * Forgets user authorization strings formed as HTTP Basic Authorization to
+	 * be validated against a list of approved users, if we 
+	 * require users are validated
+	 * @param username
+	 * @param password
+	 */
+	abstract public void ForgetExistingHttpBasicAuthorization(String username, String password);
+	
+	/***
+	 * Used to serve a simple Http403 to indicate User Authorization received
+	 * but invalid, or Http401 to indicate no User Authorization received!
+	 * @param printWriter
+	 * @param UserAuth
+	 */
+	abstract public String ServeHttp40XPerUserAuth(PrintWriter printWriter, String UserAuth); //TODO
+	
+	/***
+	 * The String message to serve when serving an Http401 response
+	 */
+	static final public String Http401Response = ("Very 401. Such auth. You are required to submit HTTP Authorization!");
+	
+	/***
+	 * The String message to serve when serving an Http403 response
+	 */
+	static final public String Http403Response = ("Very 403. Such auth. Your Authorization is invalid, and your bloodline is weak.");
+	
+	/*
+	 * Non-main functionalities: Check for a hostile IP
+	 * And formalize the construction of the "end-point" string.
+	 */
+
+	/***
+	 * Stores the IP of a Socket in the IDataStore instance as being hostile.
+	 * @param clientSocket
+	 */
+	abstract public void RecordIPAsHostile(Socket clientSocket);
+	
+	/***
+	 * Forgets the IP of a Socket in the IDataStore instance as being hostile.
+	 * @param clientSocket
+	 */
+	abstract public void ForgetIPAsHostile(Socket clientSocket);
+
 }

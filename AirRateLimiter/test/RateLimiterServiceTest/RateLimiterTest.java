@@ -15,6 +15,7 @@ import DataStore.IDataStore;
 import DataStore.IDataStore.RateLimitedIdentity;
 import RateLimiterService.AbstractRateLimiter;
 import RateLimiterService.RateLimiter;
+import RateLimiterService.RateLimitingBehaviour;
 
 /***
  * Test the RateLimiter implementation of the AbstractRateLimiter interface;
@@ -31,9 +32,9 @@ class RateLimiterTest extends IRateLimiterTestBase {
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
 			assertTrue(abstractRateLimiter.GetRequestLimitHits() == RequestLimitHits_Test);
 		}
-		allRateLimiters = MakeAllIRateLimiters(AbstractRateLimiter.RequestLimitHits_Standard,AbstractRateLimiter.TimeLimitSeconds_Standard);
+		allRateLimiters = MakeAllIRateLimiters(RateLimitingBehaviour.RequestLimitHits_Standard,RateLimitingBehaviour.TimeLimitSeconds_Standard);
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(abstractRateLimiter.GetRequestLimitHits() == AbstractRateLimiter.RequestLimitHits_Standard);
+			assertTrue(abstractRateLimiter.GetRequestLimitHits() == RateLimitingBehaviour.RequestLimitHits_Standard);
 		}
 	}
 
@@ -46,9 +47,9 @@ class RateLimiterTest extends IRateLimiterTestBase {
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
 			assertTrue(abstractRateLimiter.GetTimeLimitSeconds() == TimeLimitSeconds_Test);
 		}
-		allRateLimiters = MakeAllIRateLimiters(AbstractRateLimiter.RequestLimitHits_Standard,AbstractRateLimiter.TimeLimitSeconds_Standard);
+		allRateLimiters = MakeAllIRateLimiters(RateLimitingBehaviour.RequestLimitHits_Standard,RateLimitingBehaviour.TimeLimitSeconds_Standard);
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(abstractRateLimiter.GetTimeLimitSeconds() == AbstractRateLimiter.TimeLimitSeconds_Standard);
+			assertTrue(abstractRateLimiter.GetTimeLimitSeconds() == RateLimitingBehaviour.TimeLimitSeconds_Standard);
 		}
 	}
 
@@ -59,7 +60,7 @@ class RateLimiterTest extends IRateLimiterTestBase {
 	void GetIRateLimitersIDataStoreInstanceTest() {
 		AbstractRateLimiter[] allRateLimiters = MakeAllIRateLimiters();
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(abstractRateLimiter.GetIRateLimitersIDataStoreInstance() != null);
+			assertTrue(abstractRateLimiter.GetDataStoreInstance() != null);
 		}
 	}
 
@@ -234,7 +235,7 @@ class RateLimiterTest extends IRateLimiterTestBase {
 	}
 	
 	private void IsAttemptRateLimitedInner(AbstractRateLimiter abstractRateLimiter, RateLimitedIdentity identity) throws InterruptedException {
-		IDataStore dataStore = abstractRateLimiter.GetIRateLimitersIDataStoreInstance();
+		IDataStore dataStore = abstractRateLimiter.GetDataStoreInstance();
 		boolean[] results = new boolean[RequestLimitHits_Test+1];
 		//Hit is "Attempts + 1" times
 		for(int k = 0; k <= RequestLimitHits_Test; k++) {

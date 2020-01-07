@@ -14,13 +14,7 @@ import DataStore.IDataStore.RateLimitedIdentity;
  */
 public class RateLimiter extends AbstractRateLimiter {
 
-	final private boolean storeHostileIPs;
-	final private boolean rateLimitByIP;
-	final private boolean rateLimitByUser;
-	final private boolean rateLimitByEndpoint;
-	final private boolean approvedUsersOnly;
-	final private int RequestLimitHits;
-	final private int TimeLimitSeconds;
+	final private RateLimitingBehaviour rateLimitingBehaviour;
 	final private IDataStore dataStore;
 	
 	/*
@@ -46,13 +40,13 @@ public class RateLimiter extends AbstractRateLimiter {
 					   boolean rateLimitByUser, 
 					   boolean rateLimitByEndpoint, 
 					   boolean approvedUsersOnly) {
-		this.RequestLimitHits = RequestLimitHits;
-		this.TimeLimitSeconds = TimeLimitSeconds;
-		this.storeHostileIPs = storeHostileIPs;
-		this.rateLimitByIP = rateLimitByIP;
-		this.rateLimitByUser = rateLimitByUser;
-		this.rateLimitByEndpoint = rateLimitByEndpoint;
-		this.approvedUsersOnly = approvedUsersOnly;
+		this.rateLimitingBehaviour = new RateLimitingBehaviour(RequestLimitHits,
+				TimeLimitSeconds,
+				storeHostileIPs,
+				rateLimitByIP,
+				rateLimitByUser,
+				rateLimitByEndpoint,
+				approvedUsersOnly);
 		this.dataStore = dataStore;
 	}
 	
@@ -74,13 +68,11 @@ public class RateLimiter extends AbstractRateLimiter {
 					   boolean rateLimitByEndpoint, 
 					   boolean approvedUsersOnly, 
 					   boolean demandsUserAuth) {
-		this.RequestLimitHits = AbstractRateLimiter.RequestLimitHits_Standard;
-		this.TimeLimitSeconds = AbstractRateLimiter.TimeLimitSeconds_Standard;
-		this.storeHostileIPs = storeHostileIPs;
-		this.rateLimitByIP = rateLimitByIP;
-		this.rateLimitByUser = rateLimitByUser;
-		this.rateLimitByEndpoint = rateLimitByEndpoint;
-		this.approvedUsersOnly = approvedUsersOnly;
+		this.rateLimitingBehaviour = new RateLimitingBehaviour(storeHostileIPs,
+				rateLimitByIP,
+				rateLimitByUser,
+				rateLimitByEndpoint,
+				approvedUsersOnly);
 		this.dataStore = dataStore;
 	}
 	
@@ -93,17 +85,8 @@ public class RateLimiter extends AbstractRateLimiter {
 	 * @param TimeLimitSeconds
 	 * @param approvedUsersOnly
 	 */
-	public RateLimiter(IDataStore dataStore, 
-					   int RequestLimitHits, 
-					   int TimeLimitSeconds, 
-					   boolean approvedUsersOnly) {
-		this.RequestLimitHits = RequestLimitHits;
-		this.TimeLimitSeconds = TimeLimitSeconds;
-		this.storeHostileIPs = AbstractRateLimiter.StoreHostileIPs_Standard;
-		this.rateLimitByIP = AbstractRateLimiter.RateLimitByIP_Standard;
-		this.rateLimitByUser = AbstractRateLimiter.RateLimitByUser_Standard;
-		this.rateLimitByEndpoint = AbstractRateLimiter.RateLimitByEndpoint_Standard;
-		this.approvedUsersOnly = approvedUsersOnly;
+	public RateLimiter(IDataStore dataStore, int RequestLimitHits, int TimeLimitSeconds, boolean approvedUsersOnly) {
+		this.rateLimitingBehaviour = new RateLimitingBehaviour(RequestLimitHits,TimeLimitSeconds,approvedUsersOnly);
 		this.dataStore = dataStore;
 	}
 	
@@ -114,74 +97,18 @@ public class RateLimiter extends AbstractRateLimiter {
 	 * @param dataStore
 	 */
 	public RateLimiter(IDataStore dataStore) {
-		this.RequestLimitHits = AbstractRateLimiter.RequestLimitHits_Standard;
-		this.TimeLimitSeconds = AbstractRateLimiter.TimeLimitSeconds_Standard;
-		this.storeHostileIPs = AbstractRateLimiter.StoreHostileIPs_Standard;
-		this.rateLimitByIP = AbstractRateLimiter.RateLimitByIP_Standard;
-		this.rateLimitByUser = AbstractRateLimiter.RateLimitByUser_Standard;
-		this.rateLimitByEndpoint = AbstractRateLimiter.RateLimitByEndpoint_Standard;
-		this.approvedUsersOnly = AbstractRateLimiter.ApprovedUsersOnly_Standard;
+		this.rateLimitingBehaviour = new RateLimitingBehaviour();
 		this.dataStore = dataStore;
 	}
 	
-	/*
-	 * Getters
-	 */
-	
-	/***
-	 * @return true if hostile IPs are being stored against the IDataStore,
-	 * otherwise false
-	 */
-	public boolean GetStoreHostileIPs() {
-		return this.storeHostileIPs;
+	@Override
+	public RateLimitingBehaviour GetRateLimitingBehaviour() {
+		return this.rateLimitingBehaviour;
 	}
 	
-	/***
-	 * @return true if we are rate limiting by IPs, otherwise false
-	 */
-	public boolean GetRateLimitByIP() {
-		return this.rateLimitByIP;
-	}
-	
-	/***
-	 * @return true if we are rate limiting by HTTP User Authorization,
-	 * otherwise false
-	 */
-	public boolean GetRateLimitsByUser() {
-		return this.rateLimitByUser;
-	}
-
-	/***
-	 * @return true if we are rate limiting by end-points, otherwise false
-	 */
-	public boolean GetRateLimitByEndpoint() {
-		return this.rateLimitByEndpoint;
-	}
-	
-	/***
-	 * @return true if we are only allowing stored pre-approved HTTP User
-	 * Authorization strings, otherwise false
-	 */
-	public boolean GetApprovedUsersOnly() {
-		return this.approvedUsersOnly;
-	}
-	
-	/*
-	 * AbstractRateLimiter overrides: The three getters that are stipulated
-	 */
 	
 	@Override
-	public int GetRequestLimitHits() {
-		return this.RequestLimitHits;
-	}
-	
-	@Override
-	public int GetTimeLimitSeconds() {
-		return this.TimeLimitSeconds;
-	}
-	
-	@Override
-	public IDataStore GetIRateLimitersIDataStoreInstance() {
+	public IDataStore GetDataStoreInstance() {
 		return this.dataStore;
 	}
 	
@@ -194,16 +121,16 @@ public class RateLimiter extends AbstractRateLimiter {
 															 String clientIP,
 													         String UserAuth,
 															 String endpoint) {
-		if(this.rateLimitByEndpoint) {
+		if(this.GetRateLimitByEndpoint()) {
 			String identity = GetEndpointIdentity(clientIP,UserAuth);
 			if(identity.isEmpty()) {
 				return null;
 			} else {
 				return IDataStore.NewRateLimitedEndpoint(identity,endpoint);
 			}
-		} else if(this.rateLimitByUser && !UserAuth.isEmpty()) {
+		} else if(this.GetRateLimitByUser() && !UserAuth.isEmpty()) {
 			return IDataStore.NewRateLimitedUser(UserAuth);
-		} else if(this.rateLimitByIP) {
+		} else if(this.GetRateLimitByIP()) {
 			return IDataStore.NewRateLimitedIP(clientIP);
 		} else {
 			return null;
@@ -213,8 +140,8 @@ public class RateLimiter extends AbstractRateLimiter {
 	@Override
 	public String IsAttemptRateLimited(RateLimitedIdentity RLIdentity) {
 		boolean requestWasRateLimited = !dataStore.RecordNewAttempt(RLIdentity,
-															  RequestLimitHits,
-															 TimeLimitSeconds);
+															  GetRequestLimitHits(),
+															  GetTimeLimitSeconds());
 		if(requestWasRateLimited) {
 			switch(RLIdentity.GetRateLimitedIdentityType()) {
 				case IP:
@@ -294,12 +221,12 @@ public class RateLimiter extends AbstractRateLimiter {
 	@Override
 	public boolean IsIPHostile(Socket clientSocket) {
 		String IP = clientSocket.getInetAddress().getHostAddress();
-		return (this.storeHostileIPs && this.dataStore.containsHostileIP(IP));
+		return (GetStoreHostileIPs() && this.dataStore.containsHostileIP(IP));
 	}
 
 	@Override
 	public void RecordIPAsHostile(Socket clientSocket) {
-		if(this.storeHostileIPs) {
+		if(GetStoreHostileIPs()) {
 			String IP = clientSocket.getInetAddress().getHostAddress();
 			dataStore.recordHostileIP(IP);
 		}
@@ -307,7 +234,7 @@ public class RateLimiter extends AbstractRateLimiter {
 	
 	@Override
 	public void ForgetIPAsHostile(Socket clientSocket) {
-		if(this.storeHostileIPs) {
+		if(GetStoreHostileIPs()) {
 			String IP = clientSocket.getInetAddress().getHostAddress();
 			dataStore.removeHostileIP(IP);
 		}
@@ -328,7 +255,7 @@ public class RateLimiter extends AbstractRateLimiter {
 	
 	
 	private boolean userAuthorizationExpectedButMissing(String UserAuth) {
-		return (UserAuth.isEmpty() && this.rateLimitByUser);
+		return (UserAuth.isEmpty() && GetRateLimitByUser());
 	}
 	
 	private boolean userAuthorizationPresentButInvalid(String UserAuth) {
@@ -343,9 +270,9 @@ public class RateLimiter extends AbstractRateLimiter {
 	 * @return
 	 */
 	private String GetEndpointIdentity(String clientIP, String UserAuth) {
-		if(this.rateLimitByUser && !UserAuth.isEmpty()) {
+		if(GetRateLimitByUser() && !UserAuth.isEmpty()) {
 			return UserAuth;
-		} else if(this.rateLimitByIP) {
+		} else if(GetRateLimitByIP()) {
 			return clientIP;
 		} else {
 			return "";
@@ -371,15 +298,12 @@ public class RateLimiter extends AbstractRateLimiter {
 	}
 	
 	
-	private LocalDateTime CheckWhenNextRequestAllowed(
-											RateLimitedIdentity RLIdentity) {
-		return dataStore.CheckWhenNextRequestAllowed(RLIdentity,
-													 RequestLimitHits,
-													 TimeLimitSeconds);
+	private LocalDateTime CheckWhenNextRequestAllowed(RateLimitedIdentity RLIdentity) {
+		return dataStore.CheckWhenNextRequestAllowed(RLIdentity,GetRequestLimitHits(),GetTimeLimitSeconds());
 	}
 	
 	private boolean UserAuthIsValid(String UserAuth) {
-		return (!this.approvedUsersOnly || dataStore.IsUserAuthValid(UserAuth));
+		return (!GetApprovedUsersOnly() || dataStore.IsUserAuthValid(UserAuth));
 	}
 
 }
