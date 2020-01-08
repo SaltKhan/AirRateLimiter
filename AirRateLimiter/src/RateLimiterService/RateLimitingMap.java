@@ -1,76 +1,23 @@
 package RateLimiterService;
 
 import java.time.LocalDateTime;
-import java.util.concurrent.ConcurrentLinkedQueue;
-
 
 /***
- * Define a class to abstract the instantiation of a thread-safe mapping
- * from Strings to a thread-safe queue of LocalDateTime objects
- *
+ * A class to abstract the instantiation of a thread-safe mapping
+ * from Strings to a thread-safe queue of LocalDateTime objects.
+ * This is currently intended to be sufficient in implementing a
+ * "Fixed Window Counter" methodology.
  */
-public class RateLimitingMap {
+public class RateLimitingMap extends QueueMap<String,LocalDateTime> {
 	
-	private final QueueMap<String,LocalDateTime> queueMap;
 	public static final int deduplicationThresholdPerMilliSecond = 1000;
 	
+	/***
+	 * Create a new instance of the map from type 
+	 * String to queues of type LocalDateTime
+	 */
 	RateLimitingMap(){
-		queueMap = new QueueMap<String,LocalDateTime>();
-	}
-	
-	/***
-	 * Check if the given String maps to an existing queue
-	 * @param key
-	 * @return
-	 */
-	public boolean MapsFromKey(String key) {
-		return queueMap.MapsFromKey(key);
-	}
-	
-	/***
-	 * Get the queue for the given key
-	 * @param key
-	 * @return
-	 */
-	public ConcurrentLinkedQueue<LocalDateTime> GetQueue(String key) {
-		return queueMap.GetQueue(key);
-	}
-	
-	/***
-	 * Put a new given queue against a given key
-	 * @param key
-	 * @param queue
-	 */
-	public void PutQueue(String key, 
-						 ConcurrentLinkedQueue<LocalDateTime> queue) {
-		queueMap.PutQueue(key, queue);
-	}
-	
-	/***
-	 * Peek the tip value of the queue for a given key
-	 * @param key
-	 * @return
-	 */
-	public LocalDateTime PeekQueueTip(String key) {
-		return queueMap.PeekQueueTip(key);
-	}
-	
-	/***
-	 * Poll the tip value of the queue for a given key
-	 * @param key
-	 * @return
-	 */
-	public LocalDateTime PollQueueTip(String key) {
-		return queueMap.PollQueueTip(key);
-	}
-	
-	/***
-	 * Add a new item to the queue for a given key
-	 * @param key
-	 * @param localDateTime
-	 */
-	private void AddToQueue(String key, LocalDateTime localDateTime) {
-		queueMap.AddToQueue(key,localDateTime);
+		super();
 	}
 	
 	/***
@@ -79,12 +26,7 @@ public class RateLimitingMap {
 	 * @return
 	 */
 	public LocalDateTime MakeNewQueueWithNowAtTip(String key) {
-		LocalDateTime now = LocalDateTime.now();
-		ConcurrentLinkedQueue<LocalDateTime> queue = new 
-									ConcurrentLinkedQueue<LocalDateTime>();
-		queue.add(now);
-		this.PutQueue(key, queue);
-		return now;
+		return InitialiseQueueWith(key,LocalDateTime.now());
 	}
 	
 	/***
@@ -100,7 +42,7 @@ public class RateLimitingMap {
 	 */
 	private LocalDateTime DeduplicateValue(String key, LocalDateTime now) {
 		int thresholdCount = 0;
-		while(queueMap.QueueContainsNonDiscreteValue(key, now)) {
+		while(this.QueueContainsNonDiscreteValue(key, now)) {
 			now = now.plusNanos(1);
 			if(thresholdCount < deduplicationThresholdPerMilliSecond) {
 				thresholdCount++;
