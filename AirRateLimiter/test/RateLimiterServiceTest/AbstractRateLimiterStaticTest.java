@@ -1,25 +1,24 @@
-package DataStoreTest;
+package RateLimiterServiceTest;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDateTime;
+import RateLimiterService.RateLimitedIdentity;
+import RateLimiterService.RateLimitedIdentity.RateLimitedIdentityType;
+import RateLimiterService.RateLimitingMap;
 
-import DataStore.IDataStore.RateLimitedIdentity;
-import DataStore.IDataStore.RateLimitingMap;
-import DataStore.IDataStore.RateLimitedIdentity.RateLimitedIdentityType;
+import java.time.LocalDateTime;
 
 /***
  * Test the static methods of the IDataStore, independent of an implementation
  *
  */
-public class IDataStoreStaticTest extends IDataStoreTestBase{
+public class AbstractRateLimiterStaticTest extends AbstractRateLimiterTestBase{
 	
 	@Test
 	void NewRateLimitedIPTest() {
 		RateLimitedIdentity IPIdentity = NewTestRateLimitedIP(testIP);
-		assertTrue(IPIdentity.GetRateLimitedIdentityType() == 
-							     RateLimitedIdentityType.IP);
+		assertTrue(IPIdentity.GetRateLimitedIdentityType() == RateLimitedIdentityType.IP);
 		assertTrue(IPIdentity.GetIdentity() == testIP);
 		assertTrue(IPIdentity.GetEndpoint() == null);
 		assertFalse(IPIdentity.IsIdentityAnEndpointAttempt());

@@ -20,7 +20,7 @@ import RateLimiterService.RateLimitingBehaviour;
  * Test the RateLimiter implementation of the AbstractRateLimiter interface;
  * Only test the overridden functions (at this time, there are no statics)
  */
-class RateLimiterTest extends IRateLimiterTestBase {
+class RateLimiterTest extends AbstractRateLimiterTestBase {
 	
 	/*** Tests the
 	 * int GetRequestLimitHits();
@@ -260,6 +260,120 @@ class RateLimiterTest extends IRateLimiterTestBase {
 			assertFalse(results[k]);
 		}
 		assertTrue(results[RequestLimitHits_Test]);
+	}
+	
+	/***
+	 * @return An instance of the DataStore implementation of the IDataStore,
+	 * returned as a reference to an IDataStore implementation so as to limit
+	 * testing to the surface of the DataStore exposed by the IDataStore
+	 */
+	public AbstractRateLimiter NewTestAbstractRateLimiter() {
+		return new RateLimiter();
+	}
+	
+	@Test
+	void RecordNewAttemptTest_IP() {
+		RateLimitedIdentity identity = NewTestRateLimitedIP();
+		RecordNewAttemptTest_Generic(identity);
+		
+	}
+	
+	@Test
+	void RecordNewAttemptTest_User() {
+		RateLimitedIdentity identity = NewTestRateLimitedUser();
+		RecordNewAttemptTest_Generic(identity);
+	}
+	
+	@Test
+	void RecordNewAttemptTest_Endpoint() {
+		RateLimitedIdentity identity = NewTestRateLimitedEndpoint();
+		RecordNewAttemptTest_Generic(identity);
+	}
+	
+	private void RecordNewAttemptTest_Generic(RateLimitedIdentity identity) {
+		AssertCantRecordAttemptWhenAllowingZeroAttempts(identity);
+		AssertCanStoreOnlyTheProvidedNumberOfAttempts(identity,manyAttempts);
+		AssertOldAttemptsGetClearedWhenTheyExpire(identity,manyAttempts);
+	}
+	
+	private void AssertCantRecordAttemptWhenAllowingZeroAttempts(
+												RateLimitedIdentity identity) {
+		System.out.println("Begin test for RecordNewAttempt; "+
+						   "AssertCantRecordAttemptWhenAllowingZeroAttempts; "+
+						   identity.GetRateLimitedIdentityType().toString());
+		AbstractRateLimiter arl = NewTestAbstractRateLimiter();
+		// Test with the identity not initialized in the IDataStore
+		assertFalse(arl.RecordNewAttempt(identity, 0, anHour));
+		// Initialized the identity in the IDataStore
+		assertTrue(arl.RecordNewAttempt(identity, 1, anHour));
+		// Test with the identity initialized in the IDataStore
+		assertFalse(arl.RecordNewAttempt(identity, 0, anHour));
+	}
+	
+	private void AssertCanStoreOnlyTheProvidedNumberOfAttempts(
+												RateLimitedIdentity identity,
+												int HowManyAttempts) {
+		System.out.println("Begin test for RecordNewAttempt; "+
+				   "AssertCanStoreOnlyTheProvidedNumberOfAttempts; "+
+				   identity.GetRateLimitedIdentityType().toString());
+		AbstractRateLimiter arl = NewTestAbstractRateLimiter();
+		// Can record "HowManyAttempts" attempts
+		for(int k = 0; k < HowManyAttempts; k++) {
+			assertTrue(arl.RecordNewAttempt(identity, HowManyAttempts, anHour));
+		}
+		// Can't record any more than that!
+		assertFalse(arl.RecordNewAttempt(identity, HowManyAttempts, anHour));
+		// But we can record another one if we increase the amount!
+		assertTrue(arl.RecordNewAttempt(identity, HowManyAttempts+1, anHour));
+	}
+	
+	private void AssertOldAttemptsGetClearedWhenTheyExpire(
+												RateLimitedIdentity identity,
+												int HowManyAttempts) {
+		System.out.println("Begin test for RecordNewAttempt; "+
+				   "AssertOldAttemptsGetClearedWhenTheyExpire; "+
+				   identity.GetRateLimitedIdentityType().toString());
+		//Rather than test this with hacky sleeps or stop watch implementations
+		//this will test the expected functionality that recording of a new 
+		//attempt will clear all attempts older than necessary to keep, 
+		//which means that after adding an arbitrary amount with zero timeout
+		//there will only be 1 attempt actually held in the RateLimitingMap.
+		AbstractRateLimiter arl = NewTestAbstractRateLimiter();
+		//Firstly, assert we can add 1 more than the amount of allowed attempts
+		for(int k = 0; k <= HowManyAttempts; k++) {
+			assertTrue(arl.RecordNewAttempt(identity, HowManyAttempts, 0));
+		}
+		//Now, we expect there to be only 1 recorded attempt held in memory..
+		//Assert that we can't add a new attempt if we are only allowing the 1
+		//that is currently already stored.
+		assertFalse(arl.RecordNewAttempt(identity, 1, anHour));
+		//Assert that we CAN add a new attempt if we are allowing 2!
+		assertTrue(arl.RecordNewAttempt(identity, 2, anHour));
+	}
+	
+	@Test
+	void CheckWhenNextRequestAllowedTest() {
+		
+	}
+	
+	@Test
+	void UserAuthFunctionsTest() {
+		AbstractRateLimiter arl = NewTestAbstractRateLimiter();
+		assertFalse(arl.IsUserAuthValid(testUser));
+		arl.StoreUserAuth(testUser);
+		assertTrue(arl.IsUserAuthValid(testUser));
+		arl.ForgetUserAuth(testUser);
+		assertFalse(arl.IsUserAuthValid(testUser));
+	}
+	
+	@Test
+	void HostileIPFunctionsTest() {
+		AbstractRateLimiter arl = NewTestAbstractRateLimiter();
+		assertFalse(arl.containsHostileIP(testIP));
+		arl.recordHostileIP(testIP);
+		assertTrue(arl.containsHostileIP(testIP));
+		arl.removeHostileIP(testIP);
+		assertFalse(arl.containsHostileIP(testIP));
 	}
 	
 }

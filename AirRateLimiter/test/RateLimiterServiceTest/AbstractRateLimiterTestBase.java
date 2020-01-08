@@ -4,12 +4,14 @@ import java.util.ArrayList;
 import java.util.Base64;
 
 import RateLimiterService.AbstractRateLimiter;
+import RateLimiterService.RateLimitedIdentity;
 import RateLimiterService.RateLimiter;
+import RateLimiterService.RateLimitingMap;
 
 /***
  * Base class to provide spin-up of SUT objects related to the AbstractRateLimiter
  */
-public class IRateLimiterTestBase {
+public class AbstractRateLimiterTestBase {
 	
 	/***
 	 * How many requests to we want to allow to be serviced per 
@@ -29,6 +31,18 @@ public class IRateLimiterTestBase {
 	static final public String UserAuth_Test_2 = "Basic " + new String(Base64.getEncoder().encode(("Alice:5678").getBytes()));
 	static final public String verb_Test = "GET";
 	static final public String resource_Test = "gg/m8";
+	
+	/*
+	 * Moved from IDataStore test.
+	 */
+	public static final String testIP = "8.8.8.8";
+	public static final String testUser = "Igor";
+	public static final String testIdentity = "SuchIdentity";
+	public static final String testEndpoint = "VeryResource";
+	public static final String key = "A key";
+	public static final String anotherKey = "Another key";
+	public static final int anHour = 3600;
+	public static final int manyAttempts = 5;
 	
 	/* The following "NewTestRateLimiter" overloads are simply
 	 * invocations of the 4 constructors of the RateLimiter
@@ -518,6 +532,66 @@ public class IRateLimiterTestBase {
 	 */
 	static public boolean iteratorFlagSet(int iterator, int flag) {
 		return ((iterator & twoToThePowerOf(flag)) != 0);
+	}
+	
+	/***
+	 * @return A new instance of the IDataStore's inner class RateLimitingMap
+	 */
+	public RateLimitingMap NewTestRateLimitingMap() {
+		return AbstractRateLimiter.NewRateLimitingMap();
+	}
+	
+	/***
+	 * @param IP
+	 * @return A new instance of the IDataStore's inner class 
+	 * RateLimitedIdentity, assigned the "IP" type
+	 */
+	public RateLimitedIdentity NewTestRateLimitedIP(String IP) {
+		return AbstractRateLimiter.NewRateLimitedIP(IP);
+	}
+	
+	/***
+	 * @return A new instance of the IDataStore's inner class 
+	 * RateLimitedIdentity, assigned the "IP" type, with the generic input
+	 */
+	public RateLimitedIdentity NewTestRateLimitedIP() {
+		return NewTestRateLimitedIP(testIP);
+	}
+	
+	/***
+	 * @param User
+	 * @return A new instance of the IDataStore's inner class 
+	 * RateLimitedIdentity, assigned the "User" type
+	 */
+	public RateLimitedIdentity NewTestRateLimitedUser(String User) {
+		return AbstractRateLimiter.NewRateLimitedUser(User);
+	}
+	
+	/***
+	 * @return A new instance of the IDataStore's inner class 
+	 * RateLimitedIdentity, assigned the "User" type, with the generic input
+	 */
+	public RateLimitedIdentity NewTestRateLimitedUser() {
+		return NewTestRateLimitedUser(testUser);
+	}
+	
+	/***
+	 * @param Identity
+	 * @param Endpoint
+	 * @return A new instance of the IDataStore's inner class 
+	 * RateLimitedIdentity, assigned the "Endpoint" type
+	 */
+	public RateLimitedIdentity NewTestRateLimitedEndpoint(String Identity, String Endpoint) {
+		return AbstractRateLimiter.NewRateLimitedEndpoint(Identity,Endpoint);
+	}
+	
+	/***
+	 * @return A new instance of the IDataStore's inner class 
+	 * RateLimitedIdentity, assigned the "Endpoint" type, 
+	 * with the generic input
+	 */
+	public RateLimitedIdentity NewTestRateLimitedEndpoint() {
+		return NewTestRateLimitedEndpoint(testIdentity,testEndpoint);
 	}
 	
 }
