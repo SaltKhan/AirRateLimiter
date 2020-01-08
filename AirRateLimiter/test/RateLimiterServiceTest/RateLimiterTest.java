@@ -29,11 +29,11 @@ class RateLimiterTest extends AbstractRateLimiterTestBase {
 	void GetRequestLimitHitsTest() {
 		AbstractRateLimiter[] allRateLimiters = MakeAllIRateLimiters();
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(abstractRateLimiter.GetRequestLimitHits() == RequestLimitHits_Test);
+			assertTrue(abstractRateLimiter.requestLimitHits() == RequestLimitHits_Test);
 		}
 		allRateLimiters = MakeAllIRateLimiters(RateLimitingBehaviour.RequestLimitHits_Standard,RateLimitingBehaviour.TimeLimitSeconds_Standard);
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(abstractRateLimiter.GetRequestLimitHits() == RateLimitingBehaviour.RequestLimitHits_Standard);
+			assertTrue(abstractRateLimiter.requestLimitHits() == RateLimitingBehaviour.RequestLimitHits_Standard);
 		}
 	}
 
@@ -44,11 +44,11 @@ class RateLimiterTest extends AbstractRateLimiterTestBase {
 	void GetTimeLimitSecondsTest() {
 		AbstractRateLimiter[] allRateLimiters = MakeAllIRateLimiters();
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(abstractRateLimiter.GetTimeLimitSeconds() == TimeLimitSeconds_Test);
+			assertTrue(abstractRateLimiter.timeLimitSeconds() == TimeLimitSeconds_Test);
 		}
 		allRateLimiters = MakeAllIRateLimiters(RateLimitingBehaviour.RequestLimitHits_Standard,RateLimitingBehaviour.TimeLimitSeconds_Standard);
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(abstractRateLimiter.GetTimeLimitSeconds() == RateLimitingBehaviour.TimeLimitSeconds_Standard);
+			assertTrue(abstractRateLimiter.timeLimitSeconds() == RateLimitingBehaviour.TimeLimitSeconds_Standard);
 		}
 	}
 
@@ -184,11 +184,11 @@ class RateLimiterTest extends AbstractRateLimiterTestBase {
 	}
 	
 	private RateLimitedIdentityType NaiveFullIdentity(AbstractRateLimiter abstractRateLimiter){
-		return abstractRateLimiter.GetRateLimitedIdentityFromRateLimiterContext("clientIP", "UserAuth", "endpoint").GetRateLimitedIdentityType();
+		return abstractRateLimiter.getRateLimitedIdentityFromRateLimiterContext("clientIP", "UserAuth", "endpoint").GetRateLimitedIdentityType();
 	}
 	
 	private RateLimitedIdentityType NaivePartialIdentity(AbstractRateLimiter abstractRateLimiter){
-		RateLimitedIdentity identity = abstractRateLimiter.GetRateLimitedIdentityFromRateLimiterContext("clientIP", "", "endpoint");
+		RateLimitedIdentity identity = abstractRateLimiter.getRateLimitedIdentityFromRateLimiterContext("clientIP", "", "endpoint");
 		if(identity == null) {
 			return null;
 		} else {
@@ -220,7 +220,7 @@ class RateLimiterTest extends AbstractRateLimiterTestBase {
 			iter++;
 			threads[iter] = new Thread(() -> {
 				try {
-					IsAttemptRateLimitedInner(abstractRateLimiter,abstractRateLimiter.GetRateLimitedIdentityFromRateLimiterContext(IP_Test_2,UserAuth_Test_2,(verb_Test+"|"+resource_Test)));
+					IsAttemptRateLimitedInner(abstractRateLimiter,abstractRateLimiter.getRateLimitedIdentityFromRateLimiterContext(IP_Test_2,UserAuth_Test_2,(verb_Test+"|"+resource_Test)));
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}

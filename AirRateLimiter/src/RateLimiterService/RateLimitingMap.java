@@ -16,7 +16,7 @@ public class RateLimitingMap extends QueueMap<String,LocalDateTime> {
 	 * Create a new instance of the map from type 
 	 * String to queues of type LocalDateTime
 	 */
-	RateLimitingMap(){
+	public RateLimitingMap(){
 		super();
 	}
 	

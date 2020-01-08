@@ -538,7 +538,7 @@ public class AbstractRateLimiterTestBase {
 	 * @return A new instance of the IDataStore's inner class RateLimitingMap
 	 */
 	public RateLimitingMap NewTestRateLimitingMap() {
-		return AbstractRateLimiter.NewRateLimitingMap();
+		return new RateLimitingMap();
 	}
 	
 	/***

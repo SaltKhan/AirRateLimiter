@@ -219,7 +219,7 @@ public class Server extends ServerBase {
 					// to the RateLimiter when it was instantiated. Supply the 
 					// context with the clientIP, Auth and Endpoint and 
 					// retrieve an "Identity" aware of its own context
-					RateLimitedIdentity rateLimitedIdentity = rateLimiter.GetRateLimitedIdentityFromRateLimiterContext(clientIP,auth,endpoint);
+					RateLimitedIdentity rateLimitedIdentity = rateLimiter.getRateLimitedIdentityFromRateLimiterContext(clientIP,auth,endpoint);
 					// Check if the Rate Limiting context will
 					// rate limit this attempt
 					closureMessage = rateLimiter.IsAttemptRateLimited(rateLimitedIdentity);
