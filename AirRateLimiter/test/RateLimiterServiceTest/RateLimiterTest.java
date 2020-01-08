@@ -10,10 +10,9 @@ import java.util.HashMap;
 
 import org.junit.jupiter.api.Test;
 
-import DataStore.DataStore;
-import DataStore.IDataStore;
-import DataStore.IDataStore.RateLimitedIdentity;
 import RateLimiterService.AbstractRateLimiter;
+import RateLimiterService.RateLimitedIdentity;
+import RateLimiterService.RateLimitedIdentity.RateLimitedIdentityType;
 import RateLimiterService.RateLimiter;
 import RateLimiterService.RateLimitingBehaviour;
 
@@ -60,7 +59,7 @@ class RateLimiterTest extends IRateLimiterTestBase {
 	void GetIRateLimitersIDataStoreInstanceTest() {
 		AbstractRateLimiter[] allRateLimiters = MakeAllIRateLimiters();
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(abstractRateLimiter.GetDataStoreInstance() != null);
+			assertTrue(abstractRateLimiter != null);
 		}
 	}
 
@@ -71,22 +70,22 @@ class RateLimiterTest extends IRateLimiterTestBase {
 	void GetRateLimitedIdentityFromRateLimiterContextTest() {
 		AbstractRateLimiter[] allRateLimiters = MakeAllIPLimitingIRateLimiters();
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(NaiveFullIdentity(abstractRateLimiter) == RateLimitedIdentity.RateLimitedIdentityType.IP);
-			assertTrue(NaivePartialIdentity(abstractRateLimiter) == RateLimitedIdentity.RateLimitedIdentityType.IP);
+			assertTrue(NaiveFullIdentity(abstractRateLimiter) == RateLimitedIdentityType.IP);
+			assertTrue(NaivePartialIdentity(abstractRateLimiter) == RateLimitedIdentityType.IP);
 		}
 		allRateLimiters = MakeAllUserLimitingIRateLimiters();
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(NaiveFullIdentity(abstractRateLimiter) == RateLimitedIdentity.RateLimitedIdentityType.User);
+			assertTrue(NaiveFullIdentity(abstractRateLimiter) == RateLimitedIdentityType.User);
 			assertTrue(NaivePartialIdentity(abstractRateLimiter) == null);
 		}
 		allRateLimiters = MakeAllEndpointByIPLimitingIRateLimiters();
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(NaiveFullIdentity(abstractRateLimiter) == RateLimitedIdentity.RateLimitedIdentityType.Endpoint);
-			assertTrue(NaivePartialIdentity(abstractRateLimiter) == RateLimitedIdentity.RateLimitedIdentityType.Endpoint);
+			assertTrue(NaiveFullIdentity(abstractRateLimiter) == RateLimitedIdentityType.Endpoint);
+			assertTrue(NaivePartialIdentity(abstractRateLimiter) == RateLimitedIdentityType.Endpoint);
 		}
 		allRateLimiters = MakeAllEndpointByUserLimitingIRateLimiters();
 		for(AbstractRateLimiter abstractRateLimiter : allRateLimiters) {
-			assertTrue(NaiveFullIdentity(abstractRateLimiter) == RateLimitedIdentity.RateLimitedIdentityType.Endpoint);
+			assertTrue(NaiveFullIdentity(abstractRateLimiter) == RateLimitedIdentityType.Endpoint);
 			assertTrue(NaivePartialIdentity(abstractRateLimiter) == null);
 		}
 	}
@@ -184,11 +183,11 @@ class RateLimiterTest extends IRateLimiterTestBase {
 		}
 	}
 	
-	private RateLimitedIdentity.RateLimitedIdentityType NaiveFullIdentity(AbstractRateLimiter abstractRateLimiter){
+	private RateLimitedIdentityType NaiveFullIdentity(AbstractRateLimiter abstractRateLimiter){
 		return abstractRateLimiter.GetRateLimitedIdentityFromRateLimiterContext("clientIP", "UserAuth", "endpoint").GetRateLimitedIdentityType();
 	}
 	
-	private RateLimitedIdentity.RateLimitedIdentityType NaivePartialIdentity(AbstractRateLimiter abstractRateLimiter){
+	private RateLimitedIdentityType NaivePartialIdentity(AbstractRateLimiter abstractRateLimiter){
 		RateLimitedIdentity identity = abstractRateLimiter.GetRateLimitedIdentityFromRateLimiterContext("clientIP", "", "endpoint");
 		if(identity == null) {
 			return null;
@@ -199,10 +198,10 @@ class RateLimiterTest extends IRateLimiterTestBase {
 	
 	private HashMap<RateLimitedIdentity,AbstractRateLimiter[]> GetAllAttemptRateCasesByIdentityType() {
 		HashMap<RateLimitedIdentity,AbstractRateLimiter[]> allCases = new HashMap<RateLimitedIdentity,AbstractRateLimiter[]>();
-		allCases.put(IDataStore.NewRateLimitedIP(IP_Test), MakeAllIPLimitingIRateLimiters(RequestLimitHits_Test,TimeLimitSeconds_Test));
-		allCases.put(IDataStore.NewRateLimitedUser(UserAuth_Test), MakeAllUserLimitingIRateLimiters(RequestLimitHits_Test,TimeLimitSeconds_Test));
-		allCases.put(IDataStore.NewRateLimitedEndpoint(IP_Test, (verb_Test+"|"+resource_Test)), MakeAllEndpointByIPLimitingIRateLimiters(RequestLimitHits_Test,TimeLimitSeconds_Test));
-		allCases.put(IDataStore.NewRateLimitedEndpoint(UserAuth_Test, (verb_Test+"|"+resource_Test)), MakeAllEndpointByUserLimitingIRateLimiters(RequestLimitHits_Test,TimeLimitSeconds_Test));
+		allCases.put(AbstractRateLimiter.NewRateLimitedIP(IP_Test), MakeAllIPLimitingIRateLimiters(RequestLimitHits_Test,TimeLimitSeconds_Test));
+		allCases.put(AbstractRateLimiter.NewRateLimitedUser(UserAuth_Test), MakeAllUserLimitingIRateLimiters(RequestLimitHits_Test,TimeLimitSeconds_Test));
+		allCases.put(AbstractRateLimiter.NewRateLimitedEndpoint(IP_Test, (verb_Test+"|"+resource_Test)), MakeAllEndpointByIPLimitingIRateLimiters(RequestLimitHits_Test,TimeLimitSeconds_Test));
+		allCases.put(AbstractRateLimiter.NewRateLimitedEndpoint(UserAuth_Test, (verb_Test+"|"+resource_Test)), MakeAllEndpointByUserLimitingIRateLimiters(RequestLimitHits_Test,TimeLimitSeconds_Test));
 		return allCases;
 	}
 	
@@ -235,14 +234,13 @@ class RateLimiterTest extends IRateLimiterTestBase {
 	}
 	
 	private void IsAttemptRateLimitedInner(AbstractRateLimiter abstractRateLimiter, RateLimitedIdentity identity) throws InterruptedException {
-		IDataStore dataStore = abstractRateLimiter.GetDataStoreInstance();
 		boolean[] results = new boolean[RequestLimitHits_Test+1];
 		//Hit is "Attempts + 1" times
 		for(int k = 0; k <= RequestLimitHits_Test; k++) {
 			results[k] = (abstractRateLimiter.IsAttemptRateLimited(identity) != "");
 		}
 		//Check with the dataStore that its "next available request" time is after right now.
-		LocalDateTime nextService = dataStore.CheckWhenNextRequestAllowed(identity,RequestLimitHits_Test,TimeLimitSeconds_Test);
+		LocalDateTime nextService = abstractRateLimiter.CheckWhenNextRequestAllowed(identity,RequestLimitHits_Test,TimeLimitSeconds_Test);
 		assertTrue(nextService.isAfter(LocalDateTime.now()));
 		//Check that the first "Attempts" many attempts weren't rejected
 		for(int k = 0; k < RequestLimitHits_Test; k++) {
@@ -256,7 +254,7 @@ class RateLimiterTest extends IRateLimiterTestBase {
 		for(int k = 0; k <= RequestLimitHits_Test; k++) {
 			results[k] = (abstractRateLimiter.IsAttemptRateLimited(identity) != "");
 		}
-		nextService = dataStore.CheckWhenNextRequestAllowed(identity,RequestLimitHits_Test,TimeLimitSeconds_Test);
+		nextService = abstractRateLimiter.CheckWhenNextRequestAllowed(identity,RequestLimitHits_Test,TimeLimitSeconds_Test);
 		assertTrue(nextService.isAfter(LocalDateTime.now()));
 		for(int k = 0; k < RequestLimitHits_Test; k++) {
 			assertFalse(results[k]);

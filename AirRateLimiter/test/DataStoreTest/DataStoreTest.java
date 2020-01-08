@@ -7,10 +7,10 @@ import java.util.Base64;
 
 import org.junit.jupiter.api.Test;
 
-import DataStore.DataStore;
 import DataStore.IDataStore;
 import DataStore.IDataStore.RateLimitedIdentity;
 import DataStore.IDataStore.RateLimitingMap;
+import RateLimiterService.DataStore;
 
 /***
  * Test the DataStore implementation of the IDataStore interface;

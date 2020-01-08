@@ -3,8 +3,6 @@ package RateLimiterServiceTest;
 import java.util.ArrayList;
 import java.util.Base64;
 
-import DataStore.DataStore;
-import DataStore.IDataStore;
 import RateLimiterService.AbstractRateLimiter;
 import RateLimiterService.RateLimiter;
 
@@ -42,16 +40,14 @@ public class IRateLimiterTestBase {
 	 * testing to the surface of the RateLimiter exposed by the AbstractRateLimiter.
 	 * This is the most interactive constructor available
 	 */
-	public static AbstractRateLimiter NewTestRateLimiter(IDataStore dataStore, 
-			   int RequestLimitHits, 
+	public static AbstractRateLimiter NewTestRateLimiter(int RequestLimitHits, 
 			   int TimeLimitSeconds, 
 			   boolean storeHostileIPs, 
 			   boolean rateLimitByIP, 
 			   boolean rateLimitByUser, 
 			   boolean rateLimitByEndpoint, 
 			   boolean approvedUsersOnly) {
-		return new RateLimiter(dataStore, 
-				   			RequestLimitHits, 
+		return new RateLimiter(RequestLimitHits, 
 				   			TimeLimitSeconds, 
 				   			storeHostileIPs, 
 				   			rateLimitByIP, 
@@ -66,15 +62,13 @@ public class IRateLimiterTestBase {
 	 * testing to the surface of the RateLimiter exposed by the AbstractRateLimiter.
 	 * This is the second most interactive constructor available
 	 */
-	public static AbstractRateLimiter NewTestRateLimiter(IDataStore dataStore, 
-			   boolean storeHostileIPs, 
+	public static AbstractRateLimiter NewTestRateLimiter(boolean storeHostileIPs, 
 			   boolean rateLimitByIP, 
 			   boolean rateLimitByUser, 
 			   boolean rateLimitByEndpoint, 
 			   boolean approvedUsersOnly, 
 			   boolean demandsUserAuth) {
-		return new RateLimiter(dataStore,
-				   			storeHostileIPs, 
+		return new RateLimiter(storeHostileIPs, 
 				   			rateLimitByIP, 
 				   			rateLimitByUser, 
 				   			rateLimitByEndpoint, 
@@ -88,12 +82,10 @@ public class IRateLimiterTestBase {
 	 * testing to the surface of the RateLimiter exposed by the AbstractRateLimiter.
 	 * This is the second least interactive constructor available
 	 */
-	public static AbstractRateLimiter NewTestRateLimiter(IDataStore dataStore, 
-			   							int RequestLimitHits, 
+	public static AbstractRateLimiter NewTestRateLimiter(int RequestLimitHits, 
 			   							int TimeLimitSeconds, 
 			   							boolean approvedUsersOnly) {
-		return new RateLimiter(dataStore, 
-				   			RequestLimitHits, 
+		return new RateLimiter(RequestLimitHits, 
 				   			TimeLimitSeconds, 
 				   			approvedUsersOnly);
 	}
@@ -104,8 +96,8 @@ public class IRateLimiterTestBase {
 	 * testing to the surface of the RateLimiter exposed by the AbstractRateLimiter.
 	 * This is the least interactive constructor available
 	 */
-	public static AbstractRateLimiter NewTestRateLimiter(IDataStore dataStore) {
-		return new RateLimiter(dataStore);
+	public static AbstractRateLimiter NewTestRateLimiter() {
+		return new RateLimiter();
 	}
 	
 	/* The following "Make<<behavior>:?><Limiting:?>AbstractRateLimiter" methods 
@@ -127,8 +119,7 @@ public class IRateLimiterTestBase {
 	 * @return
 	 */
 	static public AbstractRateLimiter MakeIPLimitingIRateLimiter(int maxAttempts, int maxSeconds, boolean storeHostileIPs, boolean approvedUsersOnly) {
-		IDataStore dataStore = new DataStore();
-		return NewTestRateLimiter(dataStore, maxAttempts, maxSeconds, storeHostileIPs, true, false, false, approvedUsersOnly);
+		return NewTestRateLimiter(maxAttempts, maxSeconds, storeHostileIPs, true, false, false, approvedUsersOnly);
 	}
 	
 	/***
@@ -142,8 +133,7 @@ public class IRateLimiterTestBase {
 	 * @return
 	 */
 	static public AbstractRateLimiter MakeUserLimitingIRateLimiter(int maxAttempts, int maxSeconds, boolean storeHostileIPs, boolean approvedUsersOnly) {
-		IDataStore dataStore = new DataStore();
-		return NewTestRateLimiter(dataStore, maxAttempts, maxSeconds, storeHostileIPs, false, true, false, approvedUsersOnly);
+		return NewTestRateLimiter(maxAttempts, maxSeconds, storeHostileIPs, false, true, false, approvedUsersOnly);
 	}
 
 	/***
@@ -157,8 +147,7 @@ public class IRateLimiterTestBase {
 	 * @return
 	 */
 	static public AbstractRateLimiter MakeEndpointByIPLimitingIRateLimiter(int maxAttempts, int maxSeconds, boolean storeHostileIPs, boolean approvedUsersOnly) {
-		IDataStore dataStore = new DataStore();
-		return NewTestRateLimiter(dataStore, maxAttempts, maxSeconds, storeHostileIPs, true, false, true, approvedUsersOnly);
+		return NewTestRateLimiter(maxAttempts, maxSeconds, storeHostileIPs, true, false, true, approvedUsersOnly);
 	}
 
 	/***
@@ -172,8 +161,7 @@ public class IRateLimiterTestBase {
 	 * @return
 	 */
 	static public AbstractRateLimiter MakeEndpointByUserLimitingIRateLimiter(int maxAttempts, int maxSeconds, boolean storeHostileIPs, boolean approvedUsersOnly) {
-		IDataStore dataStore = new DataStore();
-		return NewTestRateLimiter(dataStore, maxAttempts, maxSeconds, storeHostileIPs, false, true, true, approvedUsersOnly);
+		return NewTestRateLimiter(maxAttempts, maxSeconds, storeHostileIPs, false, true, true, approvedUsersOnly);
 	}
 
 	/***
@@ -188,8 +176,7 @@ public class IRateLimiterTestBase {
 	 * @return
 	 */
 	static public AbstractRateLimiter MakeUserAuthorizationCheckingIRateLimiter(int maxAttempts, int maxSeconds, boolean storeHostileIPs, boolean rateLimitByIP, boolean rateLimitByUser, boolean rateLimitByEndpoint) {
-		IDataStore dataStore = new DataStore();
-		return NewTestRateLimiter(dataStore, maxAttempts, maxSeconds, storeHostileIPs, rateLimitByIP, rateLimitByUser, rateLimitByEndpoint, true);
+		return NewTestRateLimiter(maxAttempts, maxSeconds, storeHostileIPs, rateLimitByIP, rateLimitByUser, rateLimitByEndpoint, true);
 	}
 
 	/***
@@ -204,8 +191,7 @@ public class IRateLimiterTestBase {
 	 * @return
 	 */
 	static public AbstractRateLimiter MakeIPHostileCheckingIRateLimiter(int maxAttempts, int maxSeconds, boolean rateLimitByIP, boolean rateLimitByUser, boolean rateLimitByEndpoint, boolean approvedUsersOnly) {
-		IDataStore dataStore = new DataStore();
-		return NewTestRateLimiter(dataStore, maxAttempts, maxSeconds, true, rateLimitByIP, rateLimitByUser, rateLimitByEndpoint, approvedUsersOnly);
+		return NewTestRateLimiter(maxAttempts, maxSeconds, true, rateLimitByIP, rateLimitByUser, rateLimitByEndpoint, approvedUsersOnly);
 	}
 	
 	/***
@@ -220,8 +206,7 @@ public class IRateLimiterTestBase {
 	 * @return
 	 */
 	static public AbstractRateLimiter MakeUserAuthorizationNotCheckedIRateLimiter(int maxAttempts, int maxSeconds, boolean storeHostileIPs, boolean rateLimitByIP, boolean rateLimitByUser, boolean rateLimitByEndpoint) {
-		IDataStore dataStore = new DataStore();
-		return NewTestRateLimiter(dataStore, maxAttempts, maxSeconds, storeHostileIPs, rateLimitByIP, rateLimitByUser, rateLimitByEndpoint, false);
+		return NewTestRateLimiter(maxAttempts, maxSeconds, storeHostileIPs, rateLimitByIP, rateLimitByUser, rateLimitByEndpoint, false);
 	}
 
 	/***
@@ -236,8 +221,7 @@ public class IRateLimiterTestBase {
 	 * @return
 	 */
 	static public AbstractRateLimiter MakeIPHostileNotCheckedIRateLimiter(int maxAttempts, int maxSeconds, boolean rateLimitByIP, boolean rateLimitByUser, boolean rateLimitByEndpoint, boolean approvedUsersOnly) {
-		IDataStore dataStore = new DataStore();
-		return NewTestRateLimiter(dataStore, maxAttempts, maxSeconds, false, rateLimitByIP, rateLimitByUser, rateLimitByEndpoint, approvedUsersOnly);
+		return NewTestRateLimiter(maxAttempts, maxSeconds, false, rateLimitByIP, rateLimitByUser, rateLimitByEndpoint, approvedUsersOnly);
 	}
 
 	/* The following "MakeAll<<behavior>:?><Limiting:?>IRateLimiters" methods 
@@ -259,8 +243,7 @@ public class IRateLimiterTestBase {
 		final int howManyBooleans = 5;
 		AbstractRateLimiter[] iRateLimiters = new AbstractRateLimiter[twoToThePowerOf(howManyBooleans)];
 		for(int k = 0; k < twoToThePowerOf(howManyBooleans); k++) {
-			IDataStore dataStore = new DataStore();
-			iRateLimiters[k] = NewTestRateLimiter(dataStore,maxAttempts,maxSeconds,iteratorFlagSet(k,0),iteratorFlagSet(k,1),iteratorFlagSet(k,2),iteratorFlagSet(k,3),iteratorFlagSet(k,4));
+			iRateLimiters[k] = NewTestRateLimiter(maxAttempts,maxSeconds,iteratorFlagSet(k,0),iteratorFlagSet(k,1),iteratorFlagSet(k,2),iteratorFlagSet(k,3),iteratorFlagSet(k,4));
 		}
 		return iRateLimiters;
 	}

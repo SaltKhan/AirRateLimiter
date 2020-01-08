@@ -11,7 +11,7 @@ import java.util.HashMap;
 import java.util.StringTokenizer;
 
 import RateLimiterService.AbstractRateLimiter;
-import DataStore.IDataStore;
+import RateLimiterService.RateLimitedIdentity;
 
 /***
  * The Server class designates on object to be injected with an instance of the
@@ -219,8 +219,7 @@ public class Server extends ServerBase {
 					// to the RateLimiter when it was instantiated. Supply the 
 					// context with the clientIP, Auth and Endpoint and 
 					// retrieve an "Identity" aware of its own context
-					IDataStore.RateLimitedIdentity rateLimitedIdentity = 
-					  rateLimiter.GetRateLimitedIdentityFromRateLimiterContext(clientIP,auth,endpoint);
+					RateLimitedIdentity rateLimitedIdentity = rateLimiter.GetRateLimitedIdentityFromRateLimiterContext(clientIP,auth,endpoint);
 					// Check if the Rate Limiting context will
 					// rate limit this attempt
 					closureMessage = rateLimiter.IsAttemptRateLimited(rateLimitedIdentity);

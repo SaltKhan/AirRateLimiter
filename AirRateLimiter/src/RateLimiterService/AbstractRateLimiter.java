@@ -5,9 +5,10 @@ import java.net.Socket;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
-import DataStore.IDataStore;
-import DataStore.IDataStore.RateLimitedIdentity;
+import RateLimiterService.RateLimitedIdentity.RateLimitedIdentityType;
 
 /***
  * Defines the standard operations of a Rate Limiting module which interacts
@@ -18,19 +19,10 @@ import DataStore.IDataStore.RateLimitedIdentity;
  */
 public abstract class AbstractRateLimiter {
 	
-	/*
-	 * The two components required of any rate limiter.
-	 */
-	
 	/***
 	 * @return The behaviour definition for the rate limiter
 	 */
 	abstract public RateLimitingBehaviour GetRateLimitingBehaviour();
-	
-	/***
-	 * @return The IDataStore instance against which the AbstractRateLimiter stores data
-	 */
-	abstract public IDataStore GetDataStoreInstance();
 	
 	/*
 	 * Getters
@@ -113,12 +105,12 @@ public abstract class AbstractRateLimiter {
 			if(identity.isEmpty()) {
 				return null;
 			} else {
-				return IDataStore.NewRateLimitedEndpoint(identity,endpoint);
+				return NewRateLimitedEndpoint(identity,endpoint);
 			}
 		} else if(GetRateLimitByUser() && !UserAuth.isEmpty()) {
-			return IDataStore.NewRateLimitedUser(UserAuth);
+			return NewRateLimitedUser(UserAuth);
 		} else if(GetRateLimitByIP()) {
-			return IDataStore.NewRateLimitedIP(clientIP);
+			return NewRateLimitedIP(clientIP);
 		} else {
 			return null;
 		}
@@ -135,7 +127,7 @@ public abstract class AbstractRateLimiter {
 	 * @return
 	 */
 	public String IsAttemptRateLimited(RateLimitedIdentity RLIdentity) {
-		boolean requestWasRateLimited = !GetDataStoreInstance().RecordNewAttempt(RLIdentity,GetRequestLimitHits(),GetTimeLimitSeconds());
+		boolean requestWasRateLimited = !RecordNewAttempt(RLIdentity,GetRequestLimitHits(),GetTimeLimitSeconds());
 		if(requestWasRateLimited) {
 			switch(RLIdentity.GetRateLimitedIdentityType()) {
 				case IP:
@@ -195,7 +187,7 @@ public abstract class AbstractRateLimiter {
 	 * @param UserAuth
 	 */
 	public void StoreNewHttpAuthorization(String UserAuth) {
-		GetDataStoreInstance().StoreUserAuth(UserAuth);
+		StoreUserAuth(UserAuth);
 	}
 	
 	/***
@@ -208,7 +200,7 @@ public abstract class AbstractRateLimiter {
 	public void StoreNewHttpBasicAuthorization(String username, String password) {
 		byte[] basicAuthBytes = (username+":"+password).getBytes();
 		byte[] encodedBasic = Base64.getEncoder().encode(basicAuthBytes);
-		GetDataStoreInstance().StoreUserAuth("Basic " + new String(encodedBasic));
+		StoreUserAuth("Basic " + new String(encodedBasic));
 	}
 	
 	/***
@@ -217,7 +209,7 @@ public abstract class AbstractRateLimiter {
 	 * @param UserAuth
 	 */
 	public void ForgetExistingHttpAuthorization(String UserAuth) {
-		GetDataStoreInstance().ForgetUserAuth(UserAuth);
+		ForgetUserAuth(UserAuth);
 	}
 	
 	/***
@@ -230,7 +222,7 @@ public abstract class AbstractRateLimiter {
 	public void ForgetExistingHttpBasicAuthorization(String username, String password) {
 		byte[] basicAuthBytes = (username+":"+password).getBytes();
 		byte[] encodedBasic = Base64.getEncoder().encode(basicAuthBytes);
-		GetDataStoreInstance().ForgetUserAuth("Basic " + new String(encodedBasic));
+		ForgetUserAuth("Basic " + new String(encodedBasic));
 	}
 	
 	/***
@@ -288,7 +280,7 @@ public abstract class AbstractRateLimiter {
 	 */
 	final public boolean IsIPHostile(Socket clientSocket) {
 		String IP = clientSocket.getInetAddress().getHostAddress();
-		return (GetStoreHostileIPs() && this.GetDataStoreInstance().containsHostileIP(IP));
+		return (GetStoreHostileIPs() && this.containsHostileIP(IP));
 	}
 
 
@@ -299,7 +291,7 @@ public abstract class AbstractRateLimiter {
 	final public void RecordIPAsHostile(Socket clientSocket) {
 		if(GetStoreHostileIPs()) {
 			String IP = clientSocket.getInetAddress().getHostAddress();
-			GetDataStoreInstance().recordHostileIP(IP);
+			recordHostileIP(IP);
 		}
 	}
 	
@@ -310,7 +302,7 @@ public abstract class AbstractRateLimiter {
 	final public void ForgetIPAsHostile(Socket clientSocket) {
 		if(GetStoreHostileIPs()) {
 			String IP = clientSocket.getInetAddress().getHostAddress();
-			GetDataStoreInstance().removeHostileIP(IP);
+			removeHostileIP(IP);
 		}
 	}
 	
@@ -344,11 +336,154 @@ public abstract class AbstractRateLimiter {
 	
 	
 	protected LocalDateTime CheckWhenNextRequestAllowed(RateLimitedIdentity RLIdentity) {
-		return GetDataStoreInstance().CheckWhenNextRequestAllowed(RLIdentity,GetRequestLimitHits(),GetTimeLimitSeconds());
+		return CheckWhenNextRequestAllowed(RLIdentity,GetRequestLimitHits(),GetTimeLimitSeconds());
 	}
 	
 	protected boolean UserAuthIsValid(String UserAuth) {
-		return (!GetApprovedUsersOnly() || GetDataStoreInstance().IsUserAuthValid(UserAuth));
+		return (!GetApprovedUsersOnly() || IsUserAuthValid(UserAuth));
 	}
+	
+	/*
+	 * Including the previous IDataStore interface to this abstract class //TODO!!!
+	 */
+	
+	/*
+	 * Define the standard model of a "rate limited identity"
+	 */
+	
+	
+	
+	
+	
+	/* STATIC METHODS TO GET NEW RateLimitedIdentity INSTANCES
+	 * Functions that will generate new RateLimitedIdentity as per the
+	 * required enum to reference the identity's type.
+	 */
+	
+	/***
+	 * Define a method to return an inner instance that encapsulates 
+	 * the "Rate limited identity" when that identity is an IP
+	 * @param identity
+	 * @param endpoint
+	 * @return
+	 */
+	public static RateLimitedIdentity NewRateLimitedIP(String IP) {
+		return new RateLimitedIdentity(IP,null,RateLimitedIdentityType.IP);
+	}
+	
+	/***
+	 * Define a method to return an inner instance that encapsulates 
+	 * the "Rate limited identity" when that identity is a User
+	 * @param identity
+	 * @param endpoint
+	 * @return
+	 */
+	public static RateLimitedIdentity NewRateLimitedUser(String User) {
+		return new RateLimitedIdentity(User,null,RateLimitedIdentityType.User);
+	}
+	
+	/***
+	 * Define a method to return an inner instance that encapsulates the 
+	 * "Rate limited identity" when that identity is an End-point Identity
+	 * @param identity
+	 * @param endpoint
+	 * @return
+	 */
+	public static RateLimitedIdentity NewRateLimitedEndpoint(String identity,
+															 String endpoint) {
+		return new RateLimitedIdentity(identity,endpoint,
+				   					   RateLimitedIdentityType.Endpoint);
+	}
+	
+	
+	
+	
+	/* STATIC METHOD TO GET NEW RateLimitingMap INSTANCE
+	 * Function to return a new "QueueMap" instance targeted at the storing
+	 * and retrieval of LocalDateTime per String keys
+	 */
+	
+	/***
+	 * Return a new "RateLimitingMap" instance targeted at the storing
+	 * and retrieval of LocalDateTime per String keys
+	 * @return
+	 */
+	public static RateLimitingMap NewRateLimitingMap() {
+		return new RateLimitingMap();
+	};
+
+	/*
+	 * Functions that take a RateLimitedIdentity to record a new attempt
+	 * or check when the next request by that identity will be allowed
+	 */
+	
+	/***
+	 * Query the data store for availability to record a 
+	 * new attempt from a rateLimitedIdentity, if it is
+	 * available to create a new record, record this attempt
+	 * @param rateLimitedIdentity
+	 * @param maxAttempts
+	 * @param maxSeconds
+	 * @return
+	 */
+	abstract public boolean RecordNewAttempt(RateLimitedIdentity rateLimitedIdentity, int maxAttempts, int maxSeconds);
+	
+	/***
+	 * Query the data store to check when the next available request 
+	 * by an identity will be allowed. If the next attempt is allowed now, 
+	 * will return the current time
+	 * @param rateLimitedIdentity
+	 * @param maxAttempts
+	 * @param maxSeconds
+	 * @return
+	 */
+	abstract public LocalDateTime CheckWhenNextRequestAllowed(RateLimitedIdentity rateLimitedIdentity, int maxAttempts, int maxSeconds);
+	
+	/*
+	 * Provides functionality to store and check against stored user 
+	 * authorization strings.
+	 */
+	
+	/***
+	 * Store a user Authorization string in a list of known users
+	 * @param UserAuth
+	 */
+	abstract public void StoreUserAuth(String UserAuth);
+	
+	/***
+	 * Forget a user Authorization string from a list of known users
+	 * @param UserAuth
+	 */
+	abstract public void ForgetUserAuth(String UserAuth);
+	
+	/***
+	 * Query the data store whether it contains a given user's Authorization
+	 * @param UserAuth
+	 * @return
+	 */
+	abstract public boolean IsUserAuthValid(String UserAuth);
+	
+	/*
+	 * other functionality: Check hostile IP
+	 */
+	
+	/***
+	 * Query the data store for hostile IP
+	 * @param IP
+	 * @return
+	 */
+	abstract public boolean containsHostileIP(String IP);
+	
+	/***
+	 * Records a new hostile IP
+	 * @param IP
+	 */
+	abstract public void recordHostileIP(String IP);
+	
+	/***
+	 * Removes a tracked hostile IP
+	 * @param IP
+	 */
+	abstract public void removeHostileIP(String IP);
 	
 }

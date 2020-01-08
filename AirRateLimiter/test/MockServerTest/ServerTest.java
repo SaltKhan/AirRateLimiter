@@ -6,8 +6,6 @@ import java.io.IOException;
 
 import org.junit.jupiter.api.Test;
 
-import DataStore.DataStore;
-import DataStore.IDataStore;
 import MockServer.Client;
 import MockServer.Server;
 import RateLimiterService.AbstractRateLimiter;
@@ -17,12 +15,11 @@ class ServerTest {
 
 	@Test
 	void test() throws IOException {
-		IDataStore dataStore = new DataStore();
 		//Make a rate limiter which doesn't demand validated users, but will demand auth
 		//Allow 5 per 10 seconds
 		int maxAttempts = 5;
 		int maxSeconds = 2;
-		AbstractRateLimiter rateLimiter = new RateLimiter(dataStore,maxAttempts,maxSeconds,false);
+		AbstractRateLimiter rateLimiter = new RateLimiter(maxAttempts,maxSeconds,false);
 		Server server = new Server(true,rateLimiter);
 		server.AddServerSocket(8085);
 		Client client = new Client("localhost",8085,"GET","GG/M8","SuchUser","VeryPassword");
