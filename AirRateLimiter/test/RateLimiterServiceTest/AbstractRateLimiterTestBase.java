@@ -6,7 +6,7 @@ import java.util.Base64;
 import RateLimiterService.AbstractRateLimiter;
 import RateLimiterService.RateLimitedIdentity;
 import RateLimiterService.RateLimiter;
-import RateLimiterService.RateLimitingMap;
+import RateLimiterService.FixedWindowRateLimitingMap;
 
 /***
  * Base class to provide spin-up of SUT objects related to the AbstractRateLimiter
@@ -535,10 +535,10 @@ public class AbstractRateLimiterTestBase {
 	}
 	
 	/***
-	 * @return A new instance of the IDataStore's inner class RateLimitingMap
+	 * @return A new instance of the IDataStore's inner class FixedWindowRateLimitingMap
 	 */
-	public RateLimitingMap NewTestRateLimitingMap() {
-		return new RateLimitingMap();
+	public FixedWindowRateLimitingMap NewTestRateLimitingMap() {
+		return new FixedWindowRateLimitingMap();
 	}
 	
 	/***

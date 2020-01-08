@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
  * This is currently intended to be sufficient in implementing a
  * "Fixed Window Counter" methodology.
  */
-public class RateLimitingMap extends QueueMap<String,LocalDateTime> {
+public class FixedWindowRateLimitingMap extends QueueMap<String,LocalDateTime> {
 	
 	public static final int deduplicationThresholdPerMilliSecond = 1000;
 	
@@ -16,7 +16,7 @@ public class RateLimitingMap extends QueueMap<String,LocalDateTime> {
 	 * Create a new instance of the map from type 
 	 * String to queues of type LocalDateTime
 	 */
-	public RateLimitingMap(){
+	public FixedWindowRateLimitingMap(){
 		super();
 	}
 	

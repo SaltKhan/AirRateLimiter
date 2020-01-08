@@ -337,7 +337,7 @@ class RateLimiterTest extends AbstractRateLimiterTestBase {
 		//this will test the expected functionality that recording of a new 
 		//attempt will clear all attempts older than necessary to keep, 
 		//which means that after adding an arbitrary amount with zero timeout
-		//there will only be 1 attempt actually held in the RateLimitingMap.
+		//there will only be 1 attempt actually held in the FixedWindowRateLimitingMap.
 		AbstractRateLimiter arl = NewTestAbstractRateLimiter();
 		//Firstly, assert we can add 1 more than the amount of allowed attempts
 		for(int k = 0; k <= HowManyAttempts; k++) {

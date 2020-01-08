@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import RateLimiterService.RateLimitedIdentity;
 import RateLimiterService.RateLimitedIdentity.RateLimitedIdentityType;
-import RateLimiterService.RateLimitingMap;
+import RateLimiterService.FixedWindowRateLimitingMap;
 
 import java.time.LocalDateTime;
 
@@ -47,14 +47,14 @@ public class AbstractRateLimiterStaticTest extends AbstractRateLimiterTestBase{
 	
 	@Test
 	void RateLimitingMapTest_MakingANewQueueReturnsTheTip() {
-		RateLimitingMap rlMap = NewTestRateLimitingMap();
+		FixedWindowRateLimitingMap rlMap = NewTestRateLimitingMap();
 		LocalDateTime fromMaking = rlMap.MakeNewQueueWithNowAtTip(key);
 		assertTrue(fromMaking != null);
 	}
 	
 	@Test
 	void RateLimitingMapTest_MappingToAQueue() {
-		RateLimitingMap rlMap = NewTestRateLimitingMap();
+		FixedWindowRateLimitingMap rlMap = NewTestRateLimitingMap();
 		assertFalse(rlMap.MapsFromKey(key));
 		rlMap.MakeNewQueueWithNowAtTip(key);
 		assertTrue(rlMap.MapsFromKey(key));
@@ -62,7 +62,7 @@ public class AbstractRateLimiterStaticTest extends AbstractRateLimiterTestBase{
 	
 	@Test
 	void RateLimitingMapTest_PeekingGivesTheTip() {
-		RateLimitingMap rlMap = NewTestRateLimitingMap();
+		FixedWindowRateLimitingMap rlMap = NewTestRateLimitingMap();
 		LocalDateTime fromMaking = rlMap.MakeNewQueueWithNowAtTip(key);
 		LocalDateTime fromPeeking = rlMap.PeekQueueTip(key);
 		assertTrue(fromMaking.isEqual(fromPeeking));
@@ -70,7 +70,7 @@ public class AbstractRateLimiterStaticTest extends AbstractRateLimiterTestBase{
 	
 	@Test
 	void RateLimitingMapTest_AddingAddsAndPollingRemovesAndGivesTheTip() {
-		RateLimitingMap rlMap = NewTestRateLimitingMap();
+		FixedWindowRateLimitingMap rlMap = NewTestRateLimitingMap();
 		LocalDateTime fromMaking = rlMap.MakeNewQueueWithNowAtTip(key);
 		//Now try adding and polling
 		LocalDateTime fromAdding = rlMap.AddCurrentTimeToExistingQueue(key);

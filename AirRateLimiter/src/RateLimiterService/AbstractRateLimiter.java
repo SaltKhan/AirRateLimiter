@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.concurrent.ConcurrentHashMap;
 
 import RateLimiterService.RateLimitedIdentity.RateLimitedIdentityType;
 
@@ -18,7 +19,7 @@ import RateLimiterService.RateLimitedIdentity.RateLimitedIdentityType;
  * rate limiter, using functions that aren't abstract, which themselves rely
  * on internally abstracted functions.
  */
-public abstract class AbstractRateLimiter {
+public abstract class AbstractRateLimiter <RateLimitingMap> {
 	
 	/***
 	 * @return The behaviour definition for the rate limiter
@@ -81,6 +82,32 @@ public abstract class AbstractRateLimiter {
 	final public boolean allowingApprovedUsersOnly() {
 		return this.getRateLimitingBehaviour().ApprovedUsersOnly;
 	}
+	
+	/*
+	 * The "Rate limiting map" getters, and for the hostile IP and User Auth
+	 */
+	
+	abstract protected RateLimitingMap getIPAttemptsMap();
+	
+	abstract protected RateLimitingMap getUserAttemptsMap();
+	
+	abstract protected ConcurrentHashMap<String,RateLimitingMap> getEndpointAttemptsMap();
+	
+	/***
+	 * Used to require that an implementing subclass has a member variable 
+	 * that is an ArrayList<String>, and it should be FINAL, as an abstract
+	 * class is not allowed final objects.
+	 * @return
+	 */
+	abstract protected ArrayList<String> getValidUserAuths();
+	
+	/***
+	 * Used to require that an implementing subclass has a member variable 
+	 * that is an ArrayList<String>, and it should be FINAL, as an abstract
+	 * class is not allowed final objects.
+	 * @return
+	 */
+	abstract protected ArrayList<String> getHostileIPs();
 	
 	/*
 	 * The "main functionality" of the AbstractRateLimiter
@@ -164,6 +191,13 @@ public abstract class AbstractRateLimiter {
 	final public void ServeHttp429PerAttempt(PrintWriter printWriter, RateLimitedIdentity RLIdentity) {
 		LocalDateTime nextAllowed = CheckWhenNextRequestAllowed(RLIdentity);
 		ServeHttpErrorResponse(printWriter,429,TryAgainMessage(nextAllowed));
+	}
+	
+	private void ServeHttpErrorResponse(PrintWriter printWriter, int HttpCode, String craftedErrorMessage) {
+		printWriter.println("HTTP/1.1 "+HttpCode);
+		printWriter.println();
+		printWriter.println(craftedErrorMessage);
+		printWriter.flush();
 	}
 	
 	/***
@@ -269,6 +303,18 @@ public abstract class AbstractRateLimiter {
 		}
 	}
 	
+	private boolean userAuthorizationExpectedButMissing(String UserAuth) {
+		return (UserAuth.isEmpty() && rateLimitingByUser());
+	}
+	
+	private boolean userAuthorizationPresentButInvalid(String UserAuth) {
+		return (!UserAuth.isEmpty() && !UserAuthIsValid(UserAuth));
+	}
+
+	private boolean UserAuthIsValid(String UserAuth) {
+		return (!allowingApprovedUsersOnly() || IsUserAuthValid(UserAuth));
+	}
+	
 	/***
 	 * The String message to serve when serving an Http401 response
 	 */
@@ -295,14 +341,6 @@ public abstract class AbstractRateLimiter {
 			return "";
 		}
 	}
-	
-	/***
-	 * Used to require that an implementing subclass has a member variable 
-	 * that is an ArrayList<String>, and it should be FINAL, as an abstract
-	 * class is not allowed final objects.
-	 * @return
-	 */
-	abstract protected ArrayList<String> getValidUserAuths();
 	
 	/***
 	 * Store a user Authorization string in a list of known users
@@ -366,14 +404,6 @@ public abstract class AbstractRateLimiter {
 	}
 	
 	/***
-	 * Used to require that an implementing subclass has a member variable 
-	 * that is an ArrayList<String>, and it should be FINAL, as an abstract
-	 * class is not allowed final objects.
-	 * @return
-	 */
-	abstract protected ArrayList<String> getHostileIPs();
-	
-	/***
 	 * Query the data store for hostile IP
 	 * @param IP
 	 * @return
@@ -396,31 +426,6 @@ public abstract class AbstractRateLimiter {
 	 */
 	final public void removeHostileIP(String IP) {
 		RemoveFromArrayList(getHostileIPs(),IP);
-	}
-	
-	/*
-	 * Helpers
-	 */
-	
-	private boolean userAuthorizationExpectedButMissing(String UserAuth) {
-		return (UserAuth.isEmpty() && rateLimitingByUser());
-	}
-	
-	private boolean userAuthorizationPresentButInvalid(String UserAuth) {
-		return (!UserAuth.isEmpty() && !UserAuthIsValid(UserAuth));
-	}
-
-	private boolean UserAuthIsValid(String UserAuth) {
-		return (!allowingApprovedUsersOnly() || IsUserAuthValid(UserAuth));
-	}
-	
-	// Serve Http response helpers
-	
-	private void ServeHttpErrorResponse(PrintWriter printWriter, int HttpCode, String craftedErrorMessage) {
-		printWriter.println("HTTP/1.1 "+HttpCode);
-		printWriter.println();
-		printWriter.println(craftedErrorMessage);
-		printWriter.flush();
 	}
 	
 	/* STATIC METHODS TO GET NEW RateLimitedIdentity INSTANCES
@@ -460,7 +465,55 @@ public abstract class AbstractRateLimiter {
 	final public static RateLimitedIdentity NewRateLimitedEndpoint(String identity,String endpoint) {
 		return new RateLimitedIdentity(identity,endpoint,RateLimitedIdentityType.Endpoint);
 	}
+	
+	/*
+	 * Helper functions common to any implementing sub class trying to pick
+	 * which attempt map to put attempts in based on the behaviour with regards
+	 * to whether the limiting is done on IP / User / Endpoints.
+	 */
 
+	/***
+	 * Returns the map being used for the context of 
+	 * the RateLimitedIdentity context
+	 * @param RLIdentity
+	 * @return
+	 */
+	final protected RateLimitingMap GetAttemptMapForIdentity(RateLimitedIdentity RLIdentity){
+		switch(RLIdentity.GetRateLimitedIdentityType()) {
+			case IP:
+				return getIPAttemptsMap();
+			case User:
+				return getUserAttemptsMap();
+			case Endpoint:
+				if(getEndpointAttemptsMap().containsKey(RLIdentity.GetIdentity())) {
+					return getEndpointAttemptsMap().get(RLIdentity.GetIdentity());
+				} else {
+					return null;
+				}
+			default:
+				return null;
+		}
+	}
+	
+	/***
+	 * Returns the lookup key to be checked against in the map for
+	 * the local context of the RateLimitedIdentity
+	 * @param RLIdentity
+	 * @return
+	 */
+	final protected String GetAttemptKeyForIdentity(RateLimitedIdentity RLIdentity){
+		switch(RLIdentity.GetRateLimitedIdentityType()) {
+			case IP:
+				return RLIdentity.GetIdentity();
+			case User:
+				return RLIdentity.GetIdentity();
+			case Endpoint:
+				return RLIdentity.GetEndpoint();
+			default:
+				return null;
+		}
+	}
+	
 	/*
 	 * Functions that take a RateLimitedIdentity to record a new attempt
 	 * or check when the next request by that identity will be allowed.

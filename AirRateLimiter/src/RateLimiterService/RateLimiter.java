@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /***
  * Implements the expectations of the AbstractRateLimiter
  */
-public class RateLimiter extends AbstractRateLimiter {
+public class RateLimiter extends AbstractRateLimiter<FixedWindowRateLimitingMap> {
 
 	final private RateLimitingBehaviour rateLimitingBehaviour;
 	
@@ -15,11 +15,11 @@ public class RateLimiter extends AbstractRateLimiter {
 	
 	private final ArrayList<String> ValidUserAuths;
 	
-	private final RateLimitingMap IPAttempts;
+	private final FixedWindowRateLimitingMap IPAttempts;
 	
-	private final RateLimitingMap UserAttempts;
+	private final FixedWindowRateLimitingMap UserAttempts;
 	
-	private final ConcurrentHashMap<String,RateLimitingMap> EndpointAttempts;
+	private final ConcurrentHashMap<String,FixedWindowRateLimitingMap> EndpointAttempts;
 	
 	/*
 	 * Constructors
@@ -52,9 +52,9 @@ public class RateLimiter extends AbstractRateLimiter {
 				approvedUsersOnly);
 		this.hostileIPs = new ArrayList<String>();
 		this.ValidUserAuths = new ArrayList<String>();
-		this.IPAttempts = new RateLimitingMap();
-		this.UserAttempts = new RateLimitingMap();
-		this.EndpointAttempts = new ConcurrentHashMap<String,RateLimitingMap>();
+		this.IPAttempts = new FixedWindowRateLimitingMap();
+		this.UserAttempts = new FixedWindowRateLimitingMap();
+		this.EndpointAttempts = new ConcurrentHashMap<String,FixedWindowRateLimitingMap>();
 	}
 	
 	/***
@@ -81,9 +81,9 @@ public class RateLimiter extends AbstractRateLimiter {
 				approvedUsersOnly);
 		this.hostileIPs = new ArrayList<String>();
 		this.ValidUserAuths = new ArrayList<String>();
-		this.IPAttempts = new RateLimitingMap();
-		this.UserAttempts = new RateLimitingMap();
-		this.EndpointAttempts = new ConcurrentHashMap<String,RateLimitingMap>();
+		this.IPAttempts = new FixedWindowRateLimitingMap();
+		this.UserAttempts = new FixedWindowRateLimitingMap();
+		this.EndpointAttempts = new ConcurrentHashMap<String,FixedWindowRateLimitingMap>();
 	}
 	
 	/***
@@ -99,9 +99,9 @@ public class RateLimiter extends AbstractRateLimiter {
 		this.rateLimitingBehaviour = new RateLimitingBehaviour(RequestLimitHits,TimeLimitSeconds,approvedUsersOnly);
 		this.hostileIPs = new ArrayList<String>();
 		this.ValidUserAuths = new ArrayList<String>();
-		this.IPAttempts = new RateLimitingMap();
-		this.UserAttempts = new RateLimitingMap();
-		this.EndpointAttempts = new ConcurrentHashMap<String,RateLimitingMap>();
+		this.IPAttempts = new FixedWindowRateLimitingMap();
+		this.UserAttempts = new FixedWindowRateLimitingMap();
+		this.EndpointAttempts = new ConcurrentHashMap<String,FixedWindowRateLimitingMap>();
 	}
 	
 	/***
@@ -114,9 +114,9 @@ public class RateLimiter extends AbstractRateLimiter {
 		this.rateLimitingBehaviour = new RateLimitingBehaviour();
 		this.hostileIPs = new ArrayList<String>();
 		this.ValidUserAuths = new ArrayList<String>();
-		this.IPAttempts = new RateLimitingMap();
-		this.UserAttempts = new RateLimitingMap();
-		this.EndpointAttempts = new ConcurrentHashMap<String,RateLimitingMap>();
+		this.IPAttempts = new FixedWindowRateLimitingMap();
+		this.UserAttempts = new FixedWindowRateLimitingMap();
+		this.EndpointAttempts = new ConcurrentHashMap<String,FixedWindowRateLimitingMap>();
 	}
 	
 	/*
@@ -126,6 +126,21 @@ public class RateLimiter extends AbstractRateLimiter {
 	@Override
 	public RateLimitingBehaviour getRateLimitingBehaviour() {
 		return this.rateLimitingBehaviour;
+	}
+	
+	@Override
+	protected FixedWindowRateLimitingMap getIPAttemptsMap() {
+		return IPAttempts;
+	}
+
+	@Override
+	protected FixedWindowRateLimitingMap getUserAttemptsMap() {
+		return UserAttempts;
+	}
+
+	@Override
+	protected ConcurrentHashMap<String, FixedWindowRateLimitingMap> getEndpointAttemptsMap() {
+		return EndpointAttempts;
 	}
 
 	@Override
@@ -151,8 +166,7 @@ public class RateLimiter extends AbstractRateLimiter {
 			if(!EndpointAttempts.containsKey(RLIdentity.GetIdentity())) {
 				//If we don't contain the identity we must make it's entry!
 				if(maxAttempts > 0) {
-					return MakeEndpointMapWithNewQueue(RLIdentity, 
-												   EndpointAttempts);
+					return MakeEndpointMapWithNewQueue(RLIdentity, EndpointAttempts);
 				} else {
 					return GetRecordAttemptMessage(RLIdentity,null);
 				}
@@ -164,7 +178,7 @@ public class RateLimiter extends AbstractRateLimiter {
 	
 	@Override
 	public LocalDateTime CheckWhenNextRequestAllowed(RateLimitedIdentity RLIdentity, int maxAttempts, int maxSeconds) {
-		RateLimitingMap lookupMap = GetAttemptMapForIdentity(RLIdentity);
+		FixedWindowRateLimitingMap lookupMap = GetAttemptMapForIdentity(RLIdentity);
 		if(lookupMap == null) {
 			return LocalDateTime.now();
 		} else {
@@ -194,7 +208,7 @@ public class RateLimiter extends AbstractRateLimiter {
 	 * @return
 	 */
 	private boolean RecoredNewAttemptInner(RateLimitedIdentity RLIdentity, int maxAttempts,int maxSeconds) {
-		RateLimitingMap RLMap = GetAttemptMapForIdentity(RLIdentity);
+		FixedWindowRateLimitingMap RLMap = GetAttemptMapForIdentity(RLIdentity);
 		String lookupKey = GetAttemptKeyForIdentity(RLIdentity);
 		if(RLMap.MapsFromKey(lookupKey)) {
 			ClearOldAttemptsFromAttemptMap(RLMap,lookupKey,maxSeconds);
@@ -216,56 +230,14 @@ public class RateLimiter extends AbstractRateLimiter {
 	}
 	
 	/***
-	 * Returns the map being used for the context of 
-	 * the RateLimitedIdentity context
-	 * @param RLIdentity
-	 * @return
-	 */
-	private RateLimitingMap GetAttemptMapForIdentity(RateLimitedIdentity RLIdentity){
-		switch(RLIdentity.GetRateLimitedIdentityType()) {
-			case IP:
-				return IPAttempts;
-			case User:
-				return UserAttempts;
-			case Endpoint:
-				if(EndpointAttempts.containsKey(RLIdentity.GetIdentity())) {
-					return EndpointAttempts.get(RLIdentity.GetIdentity());
-				} else {
-					return null;
-				}
-			default:
-				return null;
-		}
-	}
-	
-	/***
-	 * Returns the lookup key to be checked against in the map for
-	 * the local context of the RateLimitedIdentity
-	 * @param RLIdentity
-	 * @return
-	 */
-	private String GetAttemptKeyForIdentity(RateLimitedIdentity RLIdentity){
-		switch(RLIdentity.GetRateLimitedIdentityType()) {
-			case IP:
-				return RLIdentity.GetIdentity();
-			case User:
-				return RLIdentity.GetIdentity();
-			case Endpoint:
-				return RLIdentity.GetEndpoint();
-			default:
-				return null;
-		}
-	}
-	
-	/***
 	 * Handles the logic specific to when we need to make a new "String ->
-	 * RateLimitingMap" entry
+	 * FixedWindowRateLimitingMap" entry
 	 * @param RLIdentity
 	 * @param EndpointMap
 	 * @return
 	 */
-	private boolean MakeEndpointMapWithNewQueue(RateLimitedIdentity RLIdentity, ConcurrentHashMap<String,RateLimitingMap> EndpointMap) {
-		RateLimitingMap newMap = new RateLimitingMap();
+	private boolean MakeEndpointMapWithNewQueue(RateLimitedIdentity RLIdentity, ConcurrentHashMap<String,FixedWindowRateLimitingMap> EndpointMap) {
+		FixedWindowRateLimitingMap newMap = new FixedWindowRateLimitingMap();
 		LocalDateTime now = newMap.MakeNewQueueWithNowAtTip(RLIdentity.GetEndpoint());
 		EndpointMap.put(RLIdentity.GetIdentity(),newMap);
 		return GetRecordAttemptMessage(RLIdentity,now);
@@ -277,7 +249,7 @@ public class RateLimiter extends AbstractRateLimiter {
 	 * @param lookupKey
 	 * @param maxSeconds
 	 */
-	private void ClearOldAttemptsFromAttemptMap(RateLimitingMap attemptMap, String lookupKey, int maxSeconds) {
+	private void ClearOldAttemptsFromAttemptMap(FixedWindowRateLimitingMap attemptMap, String lookupKey, int maxSeconds) {
 		LocalDateTime tip;
 		while((tip = attemptMap.PeekQueueTip(lookupKey)) != null) {
 			if(AttemptIsOld(tip,maxSeconds)){
@@ -296,18 +268,18 @@ public class RateLimiter extends AbstractRateLimiter {
 	 */
 	private boolean AttemptIsOld(LocalDateTime oldTime, int maxSeconds) {
 		return oldTime.isBefore(LocalDateTime.now().minusSeconds(maxSeconds)
-			 .plusNanos(RateLimitingMap.deduplicationThresholdPerMilliSecond));
+			 .plusNanos(FixedWindowRateLimitingMap.deduplicationThresholdPerMilliSecond));
 	}
 	
 	/***
-	 * Checks whether a RateLimitingMap already stores too many attempts
+	 * Checks whether a FixedWindowRateLimitingMap already stores too many attempts
 	 * from a given identity against which the attempts are stored.
 	 * @param attemptMap
 	 * @param lookupKey
 	 * @param maxAttempts
 	 * @return
 	 */
-	private boolean IdentityHasTooManyAttempts(RateLimitingMap attemptMap, String lookupKey, int maxAttempts) {
+	private boolean IdentityHasTooManyAttempts(FixedWindowRateLimitingMap attemptMap, String lookupKey, int maxAttempts) {
 		return (attemptMap.GetQueue(lookupKey).size() >= maxAttempts);
 	}
 	
