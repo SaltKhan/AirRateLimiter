@@ -84,15 +84,5 @@ public class AbstractRateLimiterStaticTest extends AbstractRateLimiterTestBase{
 		fromPolling = rlMap.PollQueueTip(key);
 		assertTrue(fromPolling == null);
 	}
-	
-	@Test
-	void RateLimitingMapTest_GettingAndPuttingTheQueue() {
-		RateLimitingMap rlMap = NewTestRateLimitingMap();
-		rlMap.MakeNewQueueWithNowAtTip(key);
-		assertTrue(rlMap.GetQueue(key) != null);
-		assertTrue(rlMap.GetQueue(anotherKey) == null);
-		rlMap.PutQueue(anotherKey, rlMap.GetQueue(key));
-		assertTrue(rlMap.GetQueue(key).equals(rlMap.GetQueue(anotherKey)));
-	}
 
 }
