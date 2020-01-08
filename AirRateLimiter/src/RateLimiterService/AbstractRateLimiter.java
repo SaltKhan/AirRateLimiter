@@ -4,6 +4,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 
 import DataStore.IDataStore;
 import DataStore.IDataStore.RateLimitedIdentity;
@@ -133,7 +134,28 @@ public abstract class AbstractRateLimiter {
 	 * @param rateLimitedIdentity
 	 * @return
 	 */
-	public abstract String IsAttemptRateLimited(RateLimitedIdentity rateLimitedIdentity);  //TODO
+	public String IsAttemptRateLimited(RateLimitedIdentity RLIdentity) {
+		boolean requestWasRateLimited = !GetDataStoreInstance().RecordNewAttempt(RLIdentity,GetRequestLimitHits(),GetTimeLimitSeconds());
+		if(requestWasRateLimited) {
+			switch(RLIdentity.GetRateLimitedIdentityType()) {
+				case IP:
+					return ("Found rate limited IP: " +
+						    RLIdentity.GetIdentity());
+				case User:
+					return ("Found rate limited User: " +
+						    RLIdentity.GetIdentity());
+				case Endpoint:
+					return ("Found rate limited Identity: " +
+							RLIdentity.GetIdentity() +
+							"; per resource " +
+							RLIdentity.GetEndpoint());
+				default:
+					return "Request was Rate Limited but without Type";
+		}
+		} else {
+			return "";
+		}
+	}
 	
 	/***
 	 * Serves a simple Http429 to the handed output stream, with a message
@@ -141,7 +163,10 @@ public abstract class AbstractRateLimiter {
 	 * @param printWriter
 	 * @param rateLimitedIdentity
 	 */
-	public abstract void ServeHttp429PerAttempt(PrintWriter printWriter, RateLimitedIdentity rateLimitedIdentity); //TODO
+	public void ServeHttp429PerAttempt(PrintWriter printWriter, RateLimitedIdentity RLIdentity) {
+		LocalDateTime nextAllowed = CheckWhenNextRequestAllowed(RLIdentity);
+		ServeHttpErrorResponse(printWriter,429,TryAgainMessage(nextAllowed));
+	}
 	
 	/***
 	 * Creating a rate limited identity relies on a consistent formatting for
@@ -169,7 +194,9 @@ public abstract class AbstractRateLimiter {
 	 * approved users, if we require users are validated
 	 * @param UserAuth
 	 */
-	abstract public void StoreNewHttpAuthorization(String UserAuth);
+	public void StoreNewHttpAuthorization(String UserAuth) {
+		GetDataStoreInstance().StoreUserAuth(UserAuth);
+	}
 	
 	/***
 	 * Store user authorization strings formed as HTTP Basic Authorization to
@@ -178,14 +205,20 @@ public abstract class AbstractRateLimiter {
 	 * @param username
 	 * @param password
 	 */
-	abstract public void StoreNewHttpBasicAuthorization(String username, String password);
+	public void StoreNewHttpBasicAuthorization(String username, String password) {
+		byte[] basicAuthBytes = (username+":"+password).getBytes();
+		byte[] encodedBasic = Base64.getEncoder().encode(basicAuthBytes);
+		GetDataStoreInstance().StoreUserAuth("Basic " + new String(encodedBasic));
+	}
 	
 	/***
 	 * Forgets user authorization strings to be validated against a list of
 	 * approved users, if we require users are validated
 	 * @param UserAuth
 	 */
-	abstract public void ForgetExistingHttpAuthorization(String UserAuth);
+	public void ForgetExistingHttpAuthorization(String UserAuth) {
+		GetDataStoreInstance().ForgetUserAuth(UserAuth);
+	}
 	
 	/***
 	 * Forgets user authorization strings formed as HTTP Basic Authorization to
@@ -194,7 +227,11 @@ public abstract class AbstractRateLimiter {
 	 * @param username
 	 * @param password
 	 */
-	abstract public void ForgetExistingHttpBasicAuthorization(String username, String password);
+	public void ForgetExistingHttpBasicAuthorization(String username, String password) {
+		byte[] basicAuthBytes = (username+":"+password).getBytes();
+		byte[] encodedBasic = Base64.getEncoder().encode(basicAuthBytes);
+		GetDataStoreInstance().ForgetUserAuth("Basic " + new String(encodedBasic));
+	}
 	
 	/***
 	 * Used to serve a simple Http403 to indicate User Authorization received
@@ -202,7 +239,17 @@ public abstract class AbstractRateLimiter {
 	 * @param printWriter
 	 * @param UserAuth
 	 */
-	abstract public String ServeHttp40XPerUserAuth(PrintWriter printWriter, String UserAuth); //TODO
+	public String ServeHttp40XPerUserAuth(PrintWriter printWriter, String UserAuth) {
+		if(userAuthorizationExpectedButMissing(UserAuth)) {
+			ServeHttpErrorResponse(printWriter,401,AbstractRateLimiter.Http401Response);
+			return AbstractRateLimiter.Http401Response;
+		} else if(userAuthorizationPresentButInvalid(UserAuth)) {
+			ServeHttpErrorResponse(printWriter,403,AbstractRateLimiter.Http403Response);
+			return AbstractRateLimiter.Http403Response;
+		} else {
+			return "";
+		}
+	}
 	
 	/***
 	 * The String message to serve when serving an Http401 response
